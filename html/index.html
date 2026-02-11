@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyBusiness Payroll</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-mode="dark" data-spacing="comfortable" data-hex="on" class="is-hidden">
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-group">
+          <div class="brand-logo" aria-hidden="true" id="platform-logo">MB</div>
+          <div>
+            <p class="eyebrow">Platform</p>
+            <h1 id="platform-name">MyBusiness Payroll</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span class="chip">Command Yellow</span>
+          <button class="btn secondary" id="refreshDataButton">Refresh Data</button>
+          <button class="btn primary" id="saveThemeButton">Save Theme</button>
+        </div>
+      </header>
+
+      <main class="content-grid">
+        <section class="panel auth-panel hex-area">
+          <h2>Command Access</h2>
+          <p class="muted" id="platform-subtitle">Workforce Compensation &amp; Time Management</p>
+          <form class="stacked-form" onsubmit="return false;">
+            <label>
+              Business Entity
+              <input type="text" id="businessName" readonly />
+            </label>
+            <label>
+              Dashboard Profile
+              <input type="text" id="dashboardTitle" readonly />
+            </label>
+            <button type="button" class="btn primary block" id="closeButton">Return to Game</button>
+          </form>
+        </section>
+
+        <section class="panel dashboard-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="dashboard-headline">Command Dashboard</h2>
+              <p class="muted" id="dashboard-subtitle">Agency-wide payroll status and time intelligence</p>
+            </div>
+            <button class="btn secondary" id="runPayrollButton">Run Payroll</button>
+          </div>
+
+          <div class="metric-grid">
+            <article class="card">
+              <p class="label">Pending Approvals</p>
+              <p class="value" id="pendingApprovals">0</p>
+              <p class="state warning">Requires review</p>
+            </article>
+            <article class="card">
+              <p class="label">Payroll Total (Current)</p>
+              <p class="value" id="payrollTotal">$0</p>
+              <p class="state success">On schedule</p>
+            </article>
+            <article class="card">
+              <p class="label">Clocked In</p>
+              <p class="value" id="clockedIn">0</p>
+              <p class="state neutral">Across departments</p>
+            </article>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Role</th>
+                  <th>Hours</th>
+                  <th>Status</th>
+                  <th>Pay</th>
+                </tr>
+              </thead>
+              <tbody id="payrollRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel config-panel">
+          <h2>Client Theme Controls</h2>
+          <p class="muted">Configure white-label and visual identity per client.</p>
+          <div class="control-list">
+            <label>Platform Name <input id="platformNameInput" value="MyBusiness Payroll" /></label>
+            <label>Primary Color <input id="primaryColor" type="color" value="#ffc72c" /></label>
+            <label>Accent Color <input id="accentColor" type="color" value="#dba500" /></label>
+            <label>Mode
+              <select id="modeSelect">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="gradient">Gradient</option>
+              </select>
+            </label>
+            <label>Background Style
+              <select id="backgroundSelect">
+                <option value="solid">Solid</option>
+                <option value="soft-gradient">Soft Gradient</option>
+              </select>
+            </label>
+            <label>Hex Overlay
+              <select id="hexToggle">
+                <option value="on">Enabled</option>
+                <option value="off">Disabled</option>
+              </select>
+            </label>
+            <label>Hex Opacity
+              <input id="hexOpacity" type="range" min="2" max="6" value="4" />
+            </label>
+            <label>Spacing
+              <select id="spacingSelect">
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </label>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
