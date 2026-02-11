@@ -1,15 +1,136 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 
-local function hasAccess(src)
-    if not Config.UseAcePermission then
-        return true
+local function debugLog(message)
+    if Config.Debug then
+        print(('[mybusiness_payroll] %s'):format(message))
     end
-
-    return IsPlayerAceAllowed(src, Config.RequiredAce)
 end
 
-local function buildFallbackRows(Player)
-    local citizenId = Player and Player.PlayerData and Player.PlayerData.citizenid or 'Unknown'
+local function fetchJobsFromCore()
+    local jobs = QBCore.Shared and QBCore.Shared.Jobs or {}
+    local list = {}
+
+    for jobName, jobData in pairs(jobs) do
+        list[#list + 1] = {
+            name = jobName,
+            label = jobData.label or jobName
+        }
+    end
+
+    table.sort(list, function(a, b)
+        return a.name < b.name
+    end)
+
+    return list
+end
+
+local function ensureDatabase()
+    MySQL.query.await([[ 
+        CREATE TABLE IF NOT EXISTS mybusiness_payroll_access (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            citizenid VARCHAR(50) NOT NULL,
+            job_name VARCHAR(50) NOT NULL,
+            role VARCHAR(20) NOT NULL DEFAULT 'employee',
+            granted_by VARCHAR(50) NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_citizen_job (citizenid, job_name)
+        )
+    ]])
+
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS mybusiness_payroll_jobs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            job_name VARCHAR(50) NOT NULL,
+            job_label VARCHAR(100) NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_job (job_name)
+        )
+    ]])
+
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS mybusiness_payroll_theme (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            job_name VARCHAR(50) NOT NULL,
+            payload LONGTEXT NOT NULL,
+            updated_by VARCHAR(50) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_job_theme (job_name)
+        )
+    ]])
+end
+
+local function syncJobsToDatabase()
+    local jobs = fetchJobsFromCore()
+
+    for _, job in ipairs(jobs) do
+        MySQL.insert.await([[
+            INSERT INTO mybusiness_payroll_jobs (job_name, job_label, is_active)
+            VALUES (?, ?, 1)
+            ON DUPLICATE KEY UPDATE job_label = VALUES(job_label), is_active = 1
+        ]], { job.name, job.label })
+    end
+
+    debugLog(('Synced %s jobs to mybusiness_payroll_jobs'):format(#jobs))
+end
+
+local function roleWeight(role)
+    return Config.AccessRoles[role or 'employee'] or 0
+end
+
+local function getPlayer(source)
+    return QBCore.Functions.GetPlayer(source)
+end
+
+local function getCitizenId(player)
+    return player and player.PlayerData and player.PlayerData.citizenid
+end
+
+local function getJobName(player)
+    return player and player.PlayerData and player.PlayerData.job and player.PlayerData.job.name or 'default'
+end
+
+local function getAccessRecord(citizenId, jobName)
+    local rows = MySQL.query.await([[
+        SELECT citizenid, job_name, role, active
+        FROM mybusiness_payroll_access
+        WHERE citizenid = ? AND job_name = ?
+        LIMIT 1
+    ]], { citizenId, jobName })
+
+    return rows and rows[1] or nil
+end
+
+local function canOpenPayroll(source)
+    if Config.UseAcePermission and IsPlayerAceAllowed(source, Config.RequiredAce) then
+        return true, 'owner'
+    end
+
+    local player = getPlayer(source)
+    if not player then
+        return false, nil
+    end
+
+    local citizenId = getCitizenId(player)
+    local jobName = getJobName(player)
+    local access = getAccessRecord(citizenId, jobName)
+
+    if access and tonumber(access.active) == 1 and roleWeight(access.role) >= roleWeight('head') then
+        return true, access.role
+    end
+
+    if Config.AutoBossAccess and player.PlayerData.job and player.PlayerData.job.isboss then
+        return true, 'owner'
+    end
+
+    return false, nil
+end
+
+local function buildFallbackRows(player)
+    local citizenId = getCitizenId(player) or 'Unknown'
     return {
         {
             employee = 'Danielle Brooks',
@@ -27,7 +148,7 @@ local function buildFallbackRows(Player)
         },
         {
             employee = ('Player %s'):format(citizenId),
-            role = Player and Player.PlayerData.job and Player.PlayerData.job.label or 'Staff',
+            role = player and player.PlayerData.job and player.PlayerData.job.label or 'Staff',
             hours = 79.5,
             status = 'Issue',
             pay = 3965
@@ -53,13 +174,32 @@ local function buildSummary(rows)
     }
 end
 
-local function buildPayload(src)
-    local Player = QBCore.Functions.GetPlayer(src)
-    local jobName = Player and Player.PlayerData and Player.PlayerData.job and Player.PlayerData.job.name or 'default'
+local function getThemeForJob(jobName)
+    local rows = MySQL.query.await([[
+        SELECT payload
+        FROM mybusiness_payroll_theme
+        WHERE job_name = ?
+        LIMIT 1
+    ]], { jobName })
+
+    if not rows or not rows[1] then
+        return Config.DefaultTheme
+    end
+
+    local ok, decoded = pcall(json.decode, rows[1].payload)
+    if ok and type(decoded) == 'table' then
+        return decoded
+    end
+
+    return Config.DefaultTheme
+end
+
+local function buildPayload(source)
+    local player = getPlayer(source)
+    local jobName = getJobName(player)
     local profile = Config.BusinessProfiles[jobName] or Config.BusinessProfiles.default
 
-    -- If you have a payroll table, replace this fallback with a SQL query.
-    local rows = buildFallbackRows(Player)
+    local rows = buildFallbackRows(player)
     local summary = buildSummary(rows)
 
     return {
@@ -67,13 +207,15 @@ local function buildPayload(src)
         profile = profile,
         summary = summary,
         rows = rows,
-        theme = Config.DefaultTheme,
-        platform = Config.Platform
+        theme = getThemeForJob(jobName),
+        platform = Config.Platform,
+        jobName = jobName
     }
 end
 
 QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload', function(source, cb)
-    if not hasAccess(source) then
+    local permitted = canOpenPayroll(source)
+    if not permitted then
         cb({ ok = false, message = 'unauthorized' })
         return
     end
@@ -82,16 +224,28 @@ QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload',
 end)
 
 RegisterNetEvent('mybusiness_payroll:server:saveTheme', function(payload)
-    local src = source
-    if not hasAccess(src) then
+    local sourcePlayer = source
+    local permitted = canOpenPayroll(sourcePlayer)
+    if not permitted then
         return
     end
 
-    if Config.Debug then
-        print(('[mybusiness_payroll] Theme update from %s: %s'):format(src, json.encode(payload)))
+    local player = getPlayer(sourcePlayer)
+    if not player then
+        return
     end
 
-    -- Persist payload to DB based on tenant/business rules when integrating in production.
+    local citizenId = getCitizenId(player)
+    local jobName = getJobName(player)
+    local encoded = json.encode(payload or {})
+
+    MySQL.insert.await([[
+        INSERT INTO mybusiness_payroll_theme (job_name, payload, updated_by)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE payload = VALUES(payload), updated_by = VALUES(updated_by)
+    ]], { jobName, encoded, citizenId })
+
+    debugLog(('Theme saved for job %s by %s'):format(jobName, citizenId))
 end)
 
 QBCore.Commands.Add(
@@ -100,8 +254,9 @@ QBCore.Commands.Add(
     {},
     false,
     function(source)
-        if not hasAccess(source) then
-            TriggerClientEvent('QBCore:Notify', source, 'Insufficient permissions for payroll console.', 'error')
+        local permitted = canOpenPayroll(source)
+        if not permitted then
+            TriggerClientEvent('QBCore:Notify', source, 'Only business owner/department head payroll access is allowed.', 'error')
             return
         end
 
@@ -118,3 +273,142 @@ QBCore.Commands.Add(
     end,
     'user'
 )
+
+QBCore.Commands.Add(
+    'payrollgrant',
+    'Grant payroll access role to a player for a city job (Admin only)',
+    {
+        { name = 'id', help = 'Server ID' },
+        { name = 'job', help = 'Job name from city jobs (example: police)' },
+        { name = 'role', help = 'owner/head/employee' }
+    },
+    true,
+    function(source, args)
+        if source > 0 and not QBCore.Functions.HasPermission(source, Config.AdminPermission) then
+            TriggerClientEvent('QBCore:Notify', source, 'Admin permission required.', 'error')
+            return
+        end
+
+        local targetSource = tonumber(args[1] or 0)
+        local targetPlayer = getPlayer(targetSource)
+        if not targetPlayer then
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Target player is not online.', 'error')
+            end
+            return
+        end
+
+        local jobName = tostring(args[2] or ''):lower()
+        if jobName == '' then
+            TriggerClientEvent('QBCore:Notify', source, 'Job name is required.', 'error')
+            return
+        end
+
+        local cityJobs = QBCore.Shared and QBCore.Shared.Jobs or {}
+        if not cityJobs[jobName] then
+            TriggerClientEvent('QBCore:Notify', source, ('Unknown city job: %s'):format(jobName), 'error')
+            return
+        end
+
+        local role = tostring(args[3] or 'employee'):lower()
+        if not Config.AccessRoles[role] then
+            TriggerClientEvent('QBCore:Notify', source, 'Invalid role. Use owner/head/employee.', 'error')
+            return
+        end
+
+        local citizenId = getCitizenId(targetPlayer)
+        local adminPlayer = getPlayer(source)
+        local grantedBy = adminPlayer and getCitizenId(adminPlayer) or 'console'
+
+        MySQL.insert.await([[
+            INSERT INTO mybusiness_payroll_access (citizenid, job_name, role, granted_by, active)
+            VALUES (?, ?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE role = VALUES(role), granted_by = VALUES(granted_by), active = 1
+        ]], { citizenId, jobName, role, grantedBy })
+
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, ('Granted %s payroll access for %s.'):format(role, jobName), 'success')
+        end
+
+        TriggerClientEvent('QBCore:Notify', targetSource, ('Payroll access granted: %s (%s).'):format(jobName, role), 'success')
+    end,
+    Config.AdminPermission
+)
+
+QBCore.Commands.Add(
+    'payrollrevoke',
+    'Revoke payroll access role for a player job (Admin only)',
+    {
+        { name = 'id', help = 'Server ID' },
+        { name = 'job', help = 'Job name to revoke' }
+    },
+    true,
+    function(source, args)
+        if source > 0 and not QBCore.Functions.HasPermission(source, Config.AdminPermission) then
+            TriggerClientEvent('QBCore:Notify', source, 'Admin permission required.', 'error')
+            return
+        end
+
+        local targetSource = tonumber(args[1] or 0)
+        local targetPlayer = getPlayer(targetSource)
+        if not targetPlayer then
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'Target player is not online.', 'error')
+            end
+            return
+        end
+
+        local jobName = tostring(args[2] or ''):lower()
+        if jobName == '' then
+            TriggerClientEvent('QBCore:Notify', source, 'Job name is required.', 'error')
+            return
+        end
+
+        local citizenId = getCitizenId(targetPlayer)
+        MySQL.update.await([[
+            UPDATE mybusiness_payroll_access
+            SET active = 0
+            WHERE citizenid = ? AND job_name = ?
+        ]], { citizenId, jobName })
+
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, ('Revoked payroll access for %s.'):format(jobName), 'success')
+        end
+
+        TriggerClientEvent('QBCore:Notify', targetSource, ('Payroll access revoked for %s.'):format(jobName), 'error')
+    end,
+    Config.AdminPermission
+)
+
+QBCore.Commands.Add(
+    'payrolljobs',
+    'List city jobs available for payroll access assignment',
+    {},
+    false,
+    function(source)
+        local jobs = fetchJobsFromCore()
+        if #jobs == 0 then
+            if source > 0 then
+                TriggerClientEvent('QBCore:Notify', source, 'No jobs loaded from QBCore.Shared.Jobs.', 'error')
+            else
+                print('[mybusiness_payroll] No jobs loaded from QBCore.Shared.Jobs.')
+            end
+            return
+        end
+
+        if source > 0 then
+            TriggerClientEvent('QBCore:Notify', source, ('Loaded %s city jobs. See server console for list.'):format(#jobs), 'primary')
+        end
+
+        print('[mybusiness_payroll] City jobs available for payroll grant:')
+        for _, job in ipairs(jobs) do
+            print((' - %s (%s)'):format(job.name, job.label))
+        end
+    end,
+    'user'
+)
+
+CreateThread(function()
+    ensureDatabase()
+    syncJobsToDatabase()
+end)
