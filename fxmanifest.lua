@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'MyBusiness Payroll'
 description 'QBCore payroll command dashboard with enterprise Command Yellow theme'
-version '1.1.0'
+version '1.2.0'
 
 shared_scripts {
     'config.lua'
@@ -16,7 +16,6 @@ client_scripts {
 }
 
 server_scripts {
-    '@oxmysql/lib/MySQL.lua',
     'server/main.lua'
 }
 

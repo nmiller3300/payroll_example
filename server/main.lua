@@ -53,13 +53,8 @@ local function buildSummary(rows)
     }
 end
 
-QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload', function(source, cb)
-    if not hasAccess(source) then
-        cb({ ok = false, message = 'unauthorized' })
-        return
-    end
-
-    local Player = QBCore.Functions.GetPlayer(source)
+local function buildPayload(src)
+    local Player = QBCore.Functions.GetPlayer(src)
     local jobName = Player and Player.PlayerData and Player.PlayerData.job and Player.PlayerData.job.name or 'default'
     local profile = Config.BusinessProfiles[jobName] or Config.BusinessProfiles.default
 
@@ -67,14 +62,23 @@ QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload',
     local rows = buildFallbackRows(Player)
     local summary = buildSummary(rows)
 
-    cb({
+    return {
         ok = true,
         profile = profile,
         summary = summary,
         rows = rows,
         theme = Config.DefaultTheme,
         platform = Config.Platform
-    })
+    }
+end
+
+QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload', function(source, cb)
+    if not hasAccess(source) then
+        cb({ ok = false, message = 'unauthorized' })
+        return
+    end
+
+    cb(buildPayload(source))
 end)
 
 RegisterNetEvent('mybusiness_payroll:server:saveTheme', function(payload)
@@ -89,3 +93,28 @@ RegisterNetEvent('mybusiness_payroll:server:saveTheme', function(payload)
 
     -- Persist payload to DB based on tenant/business rules when integrating in production.
 end)
+
+QBCore.Commands.Add(
+    Config.CommandName,
+    'Open the MyBusiness Payroll command dashboard',
+    {},
+    false,
+    function(source)
+        if not hasAccess(source) then
+            TriggerClientEvent('QBCore:Notify', source, 'Insufficient permissions for payroll console.', 'error')
+            return
+        end
+
+        local payload = buildPayload(source)
+        TriggerClientEvent(
+            'mybusiness_payroll:client:openForCommandStaff',
+            source,
+            payload.profile,
+            payload.summary,
+            payload.rows,
+            payload.theme,
+            payload.platform
+        )
+    end,
+    'user'
+)

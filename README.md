@@ -1,13 +1,20 @@
 # MyBusiness Payroll (QBCore / FiveM)
 
-This resource provides an enterprise-style payroll command dashboard for QBCore servers using NUI.
+This repository is a **FiveM QBCore script resource** with NUI assets.
+
+## Repository Layout
+
+- `fxmanifest.lua` - resource registration
+- `config.lua` - command/platform/theme configuration
+- `client/main.lua` - NUI focus/callback handling
+- `server/main.lua` - command registration + payload callback/events
+- `html/` - NUI front-end assets
 
 ## Install
 
 1. Place this folder in your server resources (for example: `resources/[qb]/mybusiness_payroll`).
-2. Ensure dependencies:
+2. Ensure dependency:
    - `qb-core`
-   - `oxmysql` (optional now, expected for production persistence)
 3. Add to `server.cfg`:
 
 ```cfg

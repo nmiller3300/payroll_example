@@ -10,12 +10,12 @@ local function setUiVisible(visible)
     })
 end
 
-local function openPayrollUi(profile, summary, rows)
+local function openPayrollUi(profile, summary, rows, theme, platform)
     SendNUIMessage({
         action = 'bootstrap',
         payload = {
-            platform = Config.Platform,
-            theme = Config.DefaultTheme,
+            platform = platform or Config.Platform,
+            theme = theme or Config.DefaultTheme,
             profile = profile,
             summary = summary,
             rows = rows
@@ -25,19 +25,8 @@ local function openPayrollUi(profile, summary, rows)
     setUiVisible(true)
 end
 
-RegisterCommand(Config.CommandName, function()
-    QBCore.Functions.TriggerCallback('mybusiness_payroll:server:getDashboardPayload', function(response)
-        if not response or not response.ok then
-            QBCore.Functions.Notify('Unable to load payroll dashboard.', 'error')
-            return
-        end
-
-        openPayrollUi(response.profile, response.summary, response.rows)
-    end)
-end, false)
-
-RegisterNetEvent('mybusiness_payroll:client:openForCommandStaff', function(profile, summary, rows)
-    openPayrollUi(profile, summary, rows)
+RegisterNetEvent('mybusiness_payroll:client:openForCommandStaff', function(profile, summary, rows, theme, platform)
+    openPayrollUi(profile, summary, rows, theme, platform)
 end)
 
 RegisterNUICallback('close', function(_, cb)
