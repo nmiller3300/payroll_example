@@ -187,6 +187,8 @@ local function ensureDatabase()
         login_domain VARCHAR(120) NOT NULL DEFAULT 'business.org',
         business_name_override VARCHAR(120) NULL,
         business_logo_url VARCHAR(500) NULL,
+        boss_primary_color VARCHAR(10) NULL,
+        employee_primary_color VARCHAR(10) NULL,
         hourly_rate DECIMAL(10,2) NOT NULL DEFAULT 100.00,
         updated_by VARCHAR(50) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -283,6 +285,8 @@ local function ensureDatabase()
     )]])
 
     ensureColumn('mybusiness_payroll_settings', 'business_logo_url', 'VARCHAR(500) NULL')
+    ensureColumn('mybusiness_payroll_settings', 'boss_primary_color', 'VARCHAR(10) NULL')
+    ensureColumn('mybusiness_payroll_settings', 'employee_primary_color', 'VARCHAR(10) NULL')
     ensureColumn('mybusiness_payroll_shifts', 'grade_level', 'INT NOT NULL DEFAULT 0')
 
     MySQL.insert.await([[INSERT INTO mybusiness_payroll_tax (id, tax_rate, ss_rate, medicare_rate)
@@ -311,15 +315,16 @@ local function syncJobsToDatabase()
         end
 
         MySQL.insert.await([[INSERT INTO mybusiness_payroll_settings
-            (job_name, period_days, period_anchor, login_domain, business_name_override, business_logo_url, hourly_rate)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (job_name, period_days, period_anchor, login_domain, business_name_override, business_logo_url, boss_primary_color, employee_primary_color, hourly_rate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE job_name = VALUES(job_name)]], {
             jobName,
             Config.Payroll.defaultPeriodDays,
             os.time(),
             (Config.BusinessProfiles.default and Config.BusinessProfiles.default.loginDomain) or 'business.org',
             nil,
-            nil,
+            Config.DefaultTheme.primaryColor,
+            Config.DefaultTheme.primaryColor,
             Config.Payroll.defaultHourlyRate
         })
     end
@@ -340,7 +345,7 @@ local function getThemeForJob(jobName)
 end
 
 local function getPeriodSettings(jobName)
-    local rows = MySQL.query.await([[SELECT period_days, period_anchor, login_domain, business_name_override, business_logo_url, hourly_rate
+    local rows = MySQL.query.await([[SELECT period_days, period_anchor, login_domain, business_name_override, business_logo_url, boss_primary_color, employee_primary_color, hourly_rate
         FROM mybusiness_payroll_settings WHERE job_name = ? LIMIT 1]], { jobName })
 
     if rows and rows[1] then
@@ -353,6 +358,8 @@ local function getPeriodSettings(jobName)
         login_domain = (Config.BusinessProfiles.default and Config.BusinessProfiles.default.loginDomain) or 'business.org',
         business_name_override = nil,
         business_logo_url = nil,
+        boss_primary_color = Config.DefaultTheme.primaryColor,
+        employee_primary_color = Config.DefaultTheme.primaryColor,
         hourly_rate = Config.Payroll.defaultHourlyRate
     }
 end
@@ -419,7 +426,9 @@ local function getAuditFlags(jobName, periodStart, periodEnd)
         issues[#issues + 1] = { employee = row.employee_name, type = 'Long Shift', detail = ('%.2f hours in one shift.'):format((tonumber(row.total_minutes) or 0) / 60), severity = 'warning' }
     end
 
-    local openRows = MySQL.query.await('SELECT employee_name, clock_in_ts FROM mybusiness_payroll_shifts WHERE job_name = ? AND clock_out_ts IS NULL', { jobName })
+    local nowTs = os.time()
+    local graceSeconds = (tonumber(Config.Payroll.openShiftGraceMinutesForAudit) or 20) * 60
+    local openRows = MySQL.query.await('SELECT employee_name, clock_in_ts FROM mybusiness_payroll_shifts WHERE job_name = ? AND clock_out_ts IS NULL AND clock_in_ts <= ?', { jobName, nowTs - graceSeconds })
     for _, row in ipairs(openRows or {}) do
         issues[#issues + 1] = { employee = row.employee_name, type = 'Open Shift', detail = ('Missing clock-out since %s'):format(os.date('%Y-%m-%d %H:%M', tonumber(row.clock_in_ts) or os.time())), severity = 'error' }
     end
@@ -551,7 +560,7 @@ local function buildBossPayload(source)
         profile = profile,
         jobName = jobName,
         jobLabel = getJobLabel(player),
-        theme = getThemeForJob(jobName),
+        theme = (function() local t=getThemeForJob(jobName); t.primaryColor=settings.boss_primary_color or t.primaryColor; return t end)(),
         rows = breakdownRows,
         auditIssues = getAuditFlags(jobName, periodStart, periodEnd),
         pendingAdjustments = getPendingAdjustments(jobName),
@@ -565,6 +574,8 @@ local function buildBossPayload(source)
             loginDomain = settings.login_domain,
             businessNameOverride = settings.business_name_override,
             businessLogoUrl = settings.business_logo_url,
+            bossPrimaryColor = settings.boss_primary_color,
+            employeePrimaryColor = settings.employee_primary_color,
             hourlyRate = defaultRate
         },
         summary = {
@@ -594,7 +605,7 @@ local function buildEmployeePayload(source)
         mode = 'employee',
         platform = Config.Platform,
         profile = Config.BusinessProfiles[jobName] or Config.BusinessProfiles.default,
-        theme = getThemeForJob(jobName),
+        theme = (function() local t=getThemeForJob(jobName); t.primaryColor=settings.employee_primary_color or t.primaryColor; return t end)(),
         employee = {
             fullName = fullName,
             loginIdentity = loginIdentity,
@@ -666,20 +677,32 @@ RegisterNetEvent('mybusiness_payroll:server:updateSettings', function(payload)
         businessLogoUrl = nil
     end
 
+    local bossPrimaryColor = tostring(payload and payload.bossPrimaryColor or '')
+    if not bossPrimaryColor:match('^#%x%x%x%x%x%x$') then
+        bossPrimaryColor = Config.DefaultTheme.primaryColor
+    end
+
+    local employeePrimaryColor = tostring(payload and payload.employeePrimaryColor or '')
+    if not employeePrimaryColor:match('^#%x%x%x%x%x%x$') then
+        employeePrimaryColor = bossPrimaryColor
+    end
+
     local hourlyRate = tonumber(payload and payload.hourlyRate) or Config.Payroll.defaultHourlyRate
     if hourlyRate < 0 then
         hourlyRate = Config.Payroll.defaultHourlyRate
     end
 
     MySQL.insert.await([[INSERT INTO mybusiness_payroll_settings
-        (job_name, period_days, period_anchor, login_domain, business_name_override, business_logo_url, hourly_rate, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (job_name, period_days, period_anchor, login_domain, business_name_override, business_logo_url, boss_primary_color, employee_primary_color, hourly_rate, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             period_days = VALUES(period_days),
             period_anchor = VALUES(period_anchor),
             login_domain = VALUES(login_domain),
             business_name_override = VALUES(business_name_override),
             business_logo_url = VALUES(business_logo_url),
+            boss_primary_color = VALUES(boss_primary_color),
+            employee_primary_color = VALUES(employee_primary_color),
             hourly_rate = VALUES(hourly_rate),
             updated_by = VALUES(updated_by)]], {
         jobName,
@@ -688,6 +711,8 @@ RegisterNetEvent('mybusiness_payroll:server:updateSettings', function(payload)
         loginDomain,
         businessNameOverride,
         businessLogoUrl,
+        bossPrimaryColor,
+        employeePrimaryColor,
         hourlyRate,
         getCitizenId(player)
     })
@@ -697,6 +722,8 @@ RegisterNetEvent('mybusiness_payroll:server:updateSettings', function(payload)
         loginDomain = loginDomain,
         businessNameOverride = businessNameOverride,
         businessLogoUrl = businessLogoUrl,
+        bossPrimaryColor = bossPrimaryColor,
+        employeePrimaryColor = employeePrimaryColor,
         hourlyRate = hourlyRate
     })
 end)
@@ -732,9 +759,12 @@ RegisterNetEvent('mybusiness_payroll:server:setEmployeeRate', function(payload)
 
     local player = getPlayer(src)
     local jobName = getJobName(player)
-    local citizenId = tostring(payload and payload.citizenid or '')
+    local targetSource = tonumber(payload and payload.playerId) or 0
+    local targetPlayer = getPlayer(targetSource)
+    local citizenId = targetPlayer and getCitizenId(targetPlayer) or tostring(payload and payload.citizenid or '')
     local rate = tonumber(payload and payload.hourlyRate) or 0
     if citizenId == '' or rate < 0 then
+        TriggerClientEvent('QBCore:Notify', src, 'Target player must be online or provide valid citizen id.', 'error')
         return
     end
 
@@ -755,7 +785,9 @@ RegisterNetEvent('mybusiness_payroll:server:addEmployeeBonus', function(payload)
 
     local player = getPlayer(src)
     local jobName = getJobName(player)
-    local citizenId = tostring(payload and payload.citizenid or '')
+    local targetSource = tonumber(payload and payload.playerId) or 0
+    local targetPlayer = getPlayer(targetSource)
+    local citizenId = targetPlayer and getCitizenId(targetPlayer) or tostring(payload and payload.citizenid or '')
     local amount = tonumber(payload and payload.amount) or 0
     local reason = tostring(payload and payload.reason or ''):sub(1, 255)
     if citizenId == '' or amount == 0 then
@@ -975,6 +1007,29 @@ QBCore.Functions.CreateCallback('mybusiness_payroll:server:getEmployeePayload', 
     end
 
     cb(buildEmployeePayload(source))
+end)
+
+
+QBCore.Functions.CreateCallback('mybusiness_payroll:server:getPlayerPreview', function(source, cb, playerId)
+    if not canOpenBoss(source) then
+        cb({ ok = false, message = 'unauthorized' })
+        return
+    end
+
+    local target = getPlayer(tonumber(playerId) or 0)
+    if not target then
+        cb({ ok = false, message = 'not_found' })
+        return
+    end
+
+    cb({
+        ok = true,
+        playerId = tonumber(playerId),
+        citizenid = getCitizenId(target),
+        fullName = getFullName(target),
+        jobName = getJobName(target),
+        gradeLevel = getJobGrade(target)
+    })
 end)
 
 QBCore.Commands.Add(Config.CommandName, 'Open boss payroll command tablet', {}, false, function(source)

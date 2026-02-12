@@ -9,7 +9,7 @@
 <body class="hidden">
   <div class="hex-overlay"></div>
 
-  <main class="shell">
+  <main class="shell tablet-shell">
     <header class="topbar">
       <div class="brand-wrap">
         <img id="platformLogo" class="platform-logo hidden" alt="Business logo" />
@@ -43,6 +43,8 @@
           <label>Employee Login Domain<input id="loginDomain" type="text" placeholder="business.org" /></label>
           <label>Business Name Override<input id="businessName" type="text" placeholder="SAST Operations" /></label>
           <label>Business Logo URL<input id="businessLogo" type="text" placeholder="https://i.imgur.com/logo.png" /></label>
+          <label>Boss Theme Color<input id="bossPrimaryColor" type="color" value="#FFC72C" /></label>
+          <label>Employee Theme Color<input id="employeePrimaryColor" type="color" value="#FFC72C" /></label>
           <label>Default Hourly Rate<input id="hourlyRate" type="number" min="0" step="0.01" /></label>
         </div>
         <div class="actions-row">
@@ -52,7 +54,7 @@
       </section>
 
       <section class="card">
-        <h3>Tax Configuration (Admin Command)</h3>
+        <h3>Tax Configuration (Admin Only)</h3>
         <p>Use in-game: <code>/settax [tax rate] [ss rate] [medicare rate]</code></p>
         <p id="taxPreview">Tax: 0% | SS: 0% | Medicare: 0%</p>
       </section>
@@ -60,14 +62,15 @@
       <section class="card">
         <h3>Compensation Controls</h3>
         <div class="settings-grid">
-          <label>Grade Level<input id="gradeLevelInput" type="number" min="0" /></label>
-          <label>Grade Hourly Rate<input id="gradeRateInput" type="number" min="0" step="0.01" /></label>
-          <label>Employee Citizen ID<input id="employeeCidInput" type="text" placeholder="ABC12345" /></label>
+          <label>Player ID (for rate)<input id="employeePlayerIdInput" type="number" min="1" /></label>
           <label>Employee Hourly Rate<input id="employeeRateInput" type="number" min="0" step="0.01" /></label>
-          <label>Bonus Citizen ID<input id="bonusCidInput" type="text" placeholder="ABC12345" /></label>
+          <label>Player ID (for bonus)<input id="bonusPlayerIdInput" type="number" min="1" /></label>
           <label>Bonus Amount<input id="bonusAmountInput" type="number" step="0.01" /></label>
           <label>Bonus Reason<input id="bonusReasonInput" type="text" placeholder="Leadership bonus" /></label>
+          <label>Grade Level<input id="gradeLevelInput" type="number" min="0" /></label>
+          <label>Grade Hourly Rate<input id="gradeRateInput" type="number" min="0" step="0.01" /></label>
         </div>
+        <p id="playerPreviewText" class="muted-line">Enter a Player ID to auto-fill employee details.</p>
         <div class="actions-row">
           <button id="setGradeRateBtn" class="btn primary">Set Grade Rate</button>
           <button id="setEmployeeRateBtn" class="btn primary">Set Employee Rate</button>

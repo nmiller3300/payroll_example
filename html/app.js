@@ -8,22 +8,17 @@ function postNui(endpoint, payload = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify(payload)
-  });
+  }).then((r) => r.json().catch(() => ({})));
 }
 
-function money(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
-}
+function money(value) { return `$${Number(value || 0).toFixed(2)}`; }
+function taxText(t = {}) { return `Tax: ${Number(t.taxRate || 0).toFixed(2)}% | SS: ${Number(t.ssRate || 0).toFixed(2)}% | Medicare: ${Number(t.medicareRate || 0).toFixed(2)}%`; }
 
 function applyTheme(theme = {}) {
   const root = document.documentElement;
   if (theme.primaryColor) root.style.setProperty('--accent', theme.primaryColor);
   qs('.hex-overlay').style.display = theme.hexEnabled === false ? 'none' : 'block';
   if (theme.hexOpacity !== undefined) qs('.hex-overlay').style.opacity = Number(theme.hexOpacity) / 100;
-}
-
-function taxText(taxes = {}) {
-  return `Tax: ${Number(taxes.taxRate || 0).toFixed(2)}% | SS: ${Number(taxes.ssRate || 0).toFixed(2)}% | Medicare: ${Number(taxes.medicareRate || 0).toFixed(2)}%`;
 }
 
 function renderSharedBranding(payload) {
@@ -44,7 +39,6 @@ function renderBoss(payload) {
 
   qs('#bossTitle').textContent = payload.profile?.dashboardTitle || 'Command Dashboard';
   qs('#bossSub').textContent = payload.profile?.dashboardSubtitle || '';
-
   qs('#metricEmployees').textContent = payload.summary?.employees ?? 0;
   qs('#metricPayroll').textContent = money(payload.summary?.payrollTotal);
   qs('#metricTax').textContent = money(payload.summary?.taxTotal);
@@ -55,6 +49,8 @@ function renderBoss(payload) {
   qs('#businessName').value = payload.settings?.businessNameOverride ?? '';
   qs('#businessLogo').value = payload.settings?.businessLogoUrl ?? '';
   qs('#hourlyRate').value = payload.settings?.hourlyRate ?? 100;
+  qs('#bossPrimaryColor').value = payload.settings?.bossPrimaryColor || payload.theme?.primaryColor || '#FFC72C';
+  qs('#employeePrimaryColor').value = payload.settings?.employeePrimaryColor || payload.theme?.primaryColor || '#FFC72C';
 
   const rows = qs('#rows');
   rows.innerHTML = '';
@@ -118,22 +114,32 @@ function renderEmployee(payload) {
   });
 }
 
+async function previewPlayer(playerId) {
+  if (!playerId) {
+    qs('#playerPreviewText').textContent = 'Enter a Player ID to auto-fill employee details.';
+    return;
+  }
+  const result = await postNui('getPlayerPreview', { playerId: Number(playerId) });
+  if (result?.ok) {
+    qs('#playerPreviewText').textContent = `Player ${result.playerId}: ${result.fullName} | CitizenID ${result.citizenid} | Job ${result.jobName} grade ${result.gradeLevel}`;
+  } else {
+    qs('#playerPreviewText').textContent = 'Player not found or not online.';
+  }
+}
+
 window.addEventListener('message', (event) => {
   const { action, payload, mode } = event.data || {};
   if (action === 'close') {
     document.body.classList.add('hidden');
     return;
   }
-
   if (action === 'open') {
     currentMode = mode || payload?.mode || 'boss';
     document.body.classList.remove('hidden');
-
     qs('#platformName').textContent = payload.platform?.name || 'MyBusiness Payroll';
     qs('#platformSubtitle').textContent = payload.platform?.subtitle || '';
     applyTheme(payload.theme || {});
     renderSharedBranding(payload);
-
     if (currentMode === 'employee') renderEmployee(payload);
     else renderBoss(payload);
   }
@@ -142,13 +148,12 @@ window.addEventListener('message', (event) => {
 document.addEventListener('click', (event) => {
   const approveId = event.target.getAttribute('data-approve');
   const rejectId = event.target.getAttribute('data-reject');
-  if (approveId) {
-    postNui('reviewAdjustment', { requestId: Number(approveId), decision: 'approved' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
-  }
-  if (rejectId) {
-    postNui('reviewAdjustment', { requestId: Number(rejectId), decision: 'rejected' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
-  }
+  if (approveId) postNui('reviewAdjustment', { requestId: Number(approveId), decision: 'approved' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
+  if (rejectId) postNui('reviewAdjustment', { requestId: Number(rejectId), decision: 'rejected' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
 });
+
+qs('#employeePlayerIdInput').addEventListener('change', (e) => previewPlayer(e.target.value));
+qs('#bonusPlayerIdInput').addEventListener('change', (e) => previewPlayer(e.target.value));
 
 qs('#closeBtn').addEventListener('click', () => postNui('close'));
 qs('#refreshBtn').addEventListener('click', () => postNui('requestRefresh', { mode: currentMode }));
@@ -157,6 +162,8 @@ qs('#saveSettingsBtn').addEventListener('click', () => postNui('saveSettings', {
   loginDomain: qs('#loginDomain').value,
   businessNameOverride: qs('#businessName').value,
   businessLogoUrl: qs('#businessLogo').value,
+  bossPrimaryColor: qs('#bossPrimaryColor').value,
+  employeePrimaryColor: qs('#employeePrimaryColor').value,
   hourlyRate: Number(qs('#hourlyRate').value || 100)
 }));
 qs('#runPayrollBtn').addEventListener('click', () => postNui('runPayroll'));
@@ -165,11 +172,11 @@ qs('#setGradeRateBtn').addEventListener('click', () => postNui('setGradeRate', {
   hourlyRate: Number(qs('#gradeRateInput').value || 0)
 }).then(() => postNui('requestRefresh', { mode: 'boss' })));
 qs('#setEmployeeRateBtn').addEventListener('click', () => postNui('setEmployeeRate', {
-  citizenid: qs('#employeeCidInput').value,
+  playerId: Number(qs('#employeePlayerIdInput').value || 0),
   hourlyRate: Number(qs('#employeeRateInput').value || 0)
 }).then(() => postNui('requestRefresh', { mode: 'boss' })));
 qs('#addBonusBtn').addEventListener('click', () => postNui('addEmployeeBonus', {
-  citizenid: qs('#bonusCidInput').value,
+  playerId: Number(qs('#bonusPlayerIdInput').value || 0),
   amount: Number(qs('#bonusAmountInput').value || 0),
   reason: qs('#bonusReasonInput').value
 }).then(() => postNui('requestRefresh', { mode: 'boss' })));
@@ -181,8 +188,5 @@ qs('#submitAdjustmentBtn').addEventListener('click', () => postNui('submitAdjust
 }).then(() => postNui('requestRefresh', { mode: 'employee' })));
 
 document.addEventListener('keydown', (event) => {
-  const key = (event.key || '').toLowerCase();
-  if (key === 'escape') {
-    postNui('close');
-  }
+  if ((event.key || '').toLowerCase() === 'escape') postNui('close');
 });

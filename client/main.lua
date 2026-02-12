@@ -85,6 +85,14 @@ RegisterNUICallback('reviewAdjustment', function(data, cb)
     cb({ ok = true })
 end)
 
+
+RegisterNUICallback('getPlayerPreview', function(data, cb)
+    local playerId = data and data.playerId
+    QBCore.Functions.TriggerCallback('mybusiness_payroll:server:getPlayerPreview', function(payload)
+        cb(payload or { ok = false, message = 'unknown' })
+    end, playerId)
+end)
+
 RegisterNUICallback('requestRefresh', function(data, cb)
     openPayload(data and data.mode == 'employee' and 'employee' or 'boss')
     cb({ ok = true })

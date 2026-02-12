@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_settings` (
   `login_domain` VARCHAR(120) NOT NULL DEFAULT 'business.org',
   `business_name_override` VARCHAR(120) NULL,
   `business_logo_url` VARCHAR(500) NULL,
+  `boss_primary_color` VARCHAR(10) NULL,
+  `employee_primary_color` VARCHAR(10) NULL,
   `hourly_rate` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
   `updated_by` VARCHAR(50) NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
