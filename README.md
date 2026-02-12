@@ -1,100 +1,60 @@
 # MyBusiness Payroll (QBCore / FiveM)
 
-Enterprise payroll tablet with **separate boss and employee experiences**, configurable pay periods, society-funded payroll runs, and audit tooling.
+Enterprise payroll resource with split boss/employee tablets, city job+grade auto-sync, shift tracking, adjustment approvals, and audit visibility.
 
-## What changed in this build
+## Core workflow
 
-- **Boss tablet (`/payroll`)** is now separated from **Employee tablet (`/payrollemployee`)**.
-- Business owners can set **pay period length**, **employee login domain**, **business display name**, and **hourly rate** from the boss tablet.
-- Employees see a premium fake login identity in tablet format: `firstname.lastname@business.org`.
-- Added real clock endpoints and shift storage (`clock in/out`) for employee-side use.
-- Added audit checks for long shifts, missing clock-outs, and extreme period totals for theft/time abuse review.
-- Added optional permission file (`permissions.lua`) for `license:`, `fivem:`, and other identifiers.
+- `/payroll` opens the **Boss Command Tablet** (leadership/supervisor/command side).
+- `/payrollemployee` opens the **Employee Payroll Tablet** (clock + personal payroll side).
+- Boss side controls period length, business login domain, business name, business logo URL, and payroll run.
+- Employee side allows clocking and **time adjustment requests** that require supervisor/command approval.
 
----
+## What was added
+
+1. **Time adjustment approvals**
+   - Employees can submit minute adjustments (within configured range).
+   - Boss/command panel shows pending requests.
+   - Supervisors/managers/command can approve or reject from boss tablet.
+   - Approved request updates latest closed shift minutes and is audit logged.
+
+2. **Business logo URL branding**
+   - Boss can set a logo URL (Discord CDN, Imgur, etc.).
+   - Employee tablet displays that logo on login panel.
+
+3. **Automatic job + grade sync from city**
+   - Script reads `QBCore.Shared.Jobs` on startup.
+   - Syncs jobs to `mybusiness_payroll_jobs`.
+   - Syncs job grades/pay to `mybusiness_payroll_job_grades`.
+   - `/payrolljobs` prints jobs and grades currently available.
 
 ## Commands
 
-- `/payroll` → Boss/command dashboard (requires boss-level access).
-- `/payrollemployee` → Employee payroll tablet and clock controls.
-- `/payrollgrant [id] [job] [grade]` → grant boss dashboard access by job + minimum grade.
-- `/payrollrevoke [id] [job]` → revoke boss dashboard access.
-- `/payrolljobs` → print synced city jobs to server console.
+- `/payroll`
+- `/payrollemployee`
+- `/payrollgrant [id] [job] [grade]`
+- `/payrollrevoke [id] [job]`
+- `/payrolljobs`
 
----
+## Permissions
 
-## Access model
-
-Boss access is granted when **any** of these pass:
-
-1. ACE node (if enabled): `Config.RequiredAce`
-2. Identifier allow-list (`permissions.lua`) if enabled
-3. DB grant in `mybusiness_payroll_access` with `grade >= min_grade`
-4. Auto-boss fallback (`Config.AutoBossAccess = true` and `PlayerData.job.isboss = true`)
-
-Employee tablet is open to all logged-in players and always job-scoped.
-
----
-
-## Permission file (`permissions.lua`)
-
-Use this if you want to avoid manual grant command usage for trusted IDs.
-
-```lua
-Permissions.IdentifierAllowList = {
-  ['license:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'] = true,
-  ['fivem:123456'] = true,
-}
-```
-
-`server/main.lua` checks these identifiers with `GetPlayerIdentifiers(source)`.
-
----
-
-## Pay period and society payout
-
-Boss tablet settings write to `mybusiness_payroll_settings`.
-
-Config limits:
-- `Config.Payroll.minPeriodDays`
-- `Config.Payroll.maxPeriodDays`
-
-When boss clicks **Run Payroll (Society)**:
-- system totals current pay-period payroll
-- attempts to debit society account through `qb-management` (`RemoveMoney(jobName, amount)`)
-- logs run in audit table even if society resource is unavailable
-
----
-
-## Employee tablet behavior
-
-Employee tablet shows:
-- Fake login identity (`firstname.lastname@configured-domain`)
-- Business name override from boss settings
-- Clocked-in status
-- Hours this period
-- Projected pay
-- Clock In / Clock Out actions
-
----
+Boss access is granted by any of:
+- ACE (`Config.RequiredAce`)
+- Identifier allow-list in `permissions.lua` (`license:`, `fivem:`, etc.)
+- DB access grant with `min_grade`
+- `Config.AutoBossAccess` boss fallback (`PlayerData.job.isboss`)
 
 ## Database tables
 
-- `mybusiness_payroll_access` → boss access grants by grade threshold
-- `mybusiness_payroll_jobs` → city job sync map
-- `mybusiness_payroll_theme` → per-job theme payload
-- `mybusiness_payroll_settings` → period + branding + rate config per job
-- `mybusiness_payroll_shifts` → raw employee clock events
-- `mybusiness_payroll_audit_log` → immutable action/audit trail
+- `mybusiness_payroll_access`
+- `mybusiness_payroll_jobs`
+- `mybusiness_payroll_job_grades`
+- `mybusiness_payroll_theme`
+- `mybusiness_payroll_settings`
+- `mybusiness_payroll_shifts`
+- `mybusiness_payroll_adjustment_requests`
+- `mybusiness_payroll_audit_log`
 
-You can import `sql/mybusiness_payroll.sql` manually; script also auto-creates on startup.
-
----
-
-## Installation
-
-1. Put resource in server resources folder.
-2. Ensure in `server.cfg`:
+## Install
 
 ```cfg
 ensure oxmysql
@@ -103,25 +63,9 @@ ensure qb-management
 ensure mybusiness_payroll
 ```
 
-3. Restart:
+Then restart:
 
 ```txt
 restart oxmysql
 restart mybusiness_payroll
 ```
-
----
-
-## Extra ideas to add next (recommended)
-
-Boss-side:
-- Shift approval queue with reason-required reject flow
-- Grade-specific overtime multipliers and holiday rates
-- CSV export (accounting, finance handoff)
-- Department-based filters and delegated approvers
-
-Employee-side:
-- Missed punch correction requests
-- PTO request workflow
-- Payslip history screen
-- Alert feed when payroll is approved/paid

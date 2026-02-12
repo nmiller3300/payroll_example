@@ -25,6 +25,7 @@ Config.Payroll = {
     defaultHourlyRate = 100,
     maxHoursPerShiftForAudit = 14,
     maxHoursPerPayPeriodForAudit = 120,
+    maxAdjustmentMinutes = 180,
     useSocietyPayout = true,
     societyResource = 'qb-management'
 }

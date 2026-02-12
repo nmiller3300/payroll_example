@@ -11,11 +11,7 @@
 * { box-sizing: border-box; font-family: Inter, Segoe UI, Arial, sans-serif; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 body.hidden { display: none; }
-.hex-overlay {
-  position: fixed; inset: 0; pointer-events: none; opacity: 0.04;
-  background-image: radial-gradient(circle at 25% 25%, #fff 1px, transparent 1px);
-  background-size: 42px 36px;
-}
+.hex-overlay { position: fixed; inset: 0; pointer-events: none; opacity: 0.04; background-image: radial-gradient(circle at 25% 25%, #fff 1px, transparent 1px); background-size: 42px 36px; }
 .shell { max-width: 1180px; margin: 0 auto; padding: 24px; position: relative; z-index: 2; }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .topbar h1 { margin: 0; font-size: 1.4rem; }
@@ -32,15 +28,15 @@ input { border: 1px solid var(--border); border-radius: 8px; background: var(--s
 .btn { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; cursor: pointer; }
 .btn.primary { background: var(--accent); color: #1e1b0a; border-color: transparent; font-weight: 700; }
 .btn.muted { background: #2a2a31; color: var(--text); }
+.btn.tiny { padding: 4px 8px; font-size: .8rem; margin-left: 8px; }
 .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
-.audit-list { margin: 0; padding-left: 20px; }
-.audit-list li { margin-bottom: 6px; }
+.audit-list, .simple-list { margin: 0; padding-left: 20px; }
+.audit-list li, .simple-list li { margin-bottom: 6px; }
 .audit-list .error { color: #f87171; }
 .audit-list .warning { color: #fbbf24; }
 .employee-login { text-align: center; }
 .employee-login strong { font-size: 1.2rem; }
-@media (max-width: 900px) {
-  .metrics, .settings-grid { grid-template-columns: 1fr; }
-}
+.business-logo { max-width: 120px; max-height: 120px; margin: 0 auto 10px; display: block; border-radius: 10px; border: 1px solid var(--border); }
+@media (max-width: 900px) { .metrics, .settings-grid { grid-template-columns: 1fr; } }

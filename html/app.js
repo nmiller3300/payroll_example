@@ -18,8 +18,7 @@ function money(value) {
 function applyTheme(theme = {}) {
   const root = document.documentElement;
   if (theme.primaryColor) root.style.setProperty('--accent', theme.primaryColor);
-  if (theme.hexEnabled === false) qs('.hex-overlay').style.display = 'none';
-  else qs('.hex-overlay').style.display = 'block';
+  qs('.hex-overlay').style.display = theme.hexEnabled === false ? 'none' : 'block';
   if (theme.hexOpacity !== undefined) qs('.hex-overlay').style.opacity = Number(theme.hexOpacity) / 100;
 }
 
@@ -32,11 +31,12 @@ function renderBoss(payload) {
 
   qs('#metricEmployees').textContent = payload.summary?.employees ?? 0;
   qs('#metricPayroll').textContent = money(payload.summary?.payrollTotal);
-  qs('#metricAudit').textContent = payload.auditIssues?.length ?? 0;
+  qs('#metricAudit').textContent = payload.summary?.pendingApprovals ?? 0;
 
   qs('#periodDays').value = payload.settings?.periodDays ?? 14;
   qs('#loginDomain').value = payload.settings?.loginDomain ?? 'business.org';
   qs('#businessName').value = payload.settings?.businessNameOverride ?? '';
+  qs('#businessLogo').value = payload.settings?.businessLogoUrl ?? '';
   qs('#hourlyRate').value = payload.settings?.hourlyRate ?? 100;
 
   const rows = qs('#rows');
@@ -47,12 +47,32 @@ function renderBoss(payload) {
     rows.appendChild(tr);
   });
 
+  const gradeList = qs('#jobGradeList');
+  gradeList.innerHTML = '';
+  (payload.jobGrades || []).forEach((grade) => {
+    const li = document.createElement('li');
+    li.textContent = `Grade ${grade.grade_level}: ${grade.grade_name || 'N/A'} ($${Number(grade.payment || 0).toFixed(2)})`;
+    gradeList.appendChild(li);
+  });
+
+  const adjustmentList = qs('#adjustmentList');
+  adjustmentList.innerHTML = '';
+  if ((payload.pendingAdjustments || []).length === 0) {
+    adjustmentList.innerHTML = '<li>No pending adjustment requests.</li>';
+  } else {
+    payload.pendingAdjustments.forEach((item) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.employee_name} requested ${item.minutes_delta > 0 ? '+' : ''}${item.minutes_delta} mins — ${item.reason}
+        <button class="btn primary tiny" data-approve="${item.id}">Approve</button>
+        <button class="btn muted tiny" data-reject="${item.id}">Reject</button>`;
+      adjustmentList.appendChild(li);
+    });
+  }
+
   const audit = qs('#auditList');
   audit.innerHTML = '';
   if (!payload.auditIssues || payload.auditIssues.length === 0) {
-    const li = document.createElement('li');
-    li.textContent = 'No active audit flags.';
-    audit.appendChild(li);
+    audit.innerHTML = '<li>No active audit flags.</li>';
   } else {
     payload.auditIssues.forEach((issue) => {
       const li = document.createElement('li');
@@ -72,6 +92,25 @@ function renderEmployee(payload) {
   qs('#employeeStatus').textContent = payload.employee?.isClockedIn ? 'Clocked In' : 'Clocked Out';
   qs('#employeeHours').textContent = Number(payload.summary?.totalHours || 0).toFixed(2);
   qs('#employeeProjected').textContent = money(payload.summary?.projectedPay);
+  qs('#adjustMinutes').max = payload.settings?.maxAdjustmentMinutes || 180;
+  qs('#adjustMinutes').min = -1 * (payload.settings?.maxAdjustmentMinutes || 180);
+
+  const logo = qs('#employeeLogo');
+  if (payload.employee?.businessLogoUrl) {
+    logo.src = payload.employee.businessLogoUrl;
+    logo.classList.remove('hidden');
+  } else {
+    logo.src = '';
+    logo.classList.add('hidden');
+  }
+
+  const history = qs('#employeeAdjustmentHistory');
+  history.innerHTML = '';
+  (payload.adjustmentRequests || []).forEach((item) => {
+    const li = document.createElement('li');
+    li.textContent = `${item.minutes_delta > 0 ? '+' : ''}${item.minutes_delta} mins | ${item.status} | ${item.reason}`;
+    history.appendChild(li);
+  });
 }
 
 window.addEventListener('message', (event) => {
@@ -94,17 +133,33 @@ window.addEventListener('message', (event) => {
   }
 });
 
+document.addEventListener('click', (event) => {
+  const approveId = event.target.getAttribute('data-approve');
+  const rejectId = event.target.getAttribute('data-reject');
+  if (approveId) {
+    postNui('reviewAdjustment', { requestId: Number(approveId), decision: 'approved' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
+  }
+  if (rejectId) {
+    postNui('reviewAdjustment', { requestId: Number(rejectId), decision: 'rejected' }).then(() => postNui('requestRefresh', { mode: 'boss' }));
+  }
+});
+
 qs('#closeBtn').addEventListener('click', () => postNui('close'));
 qs('#refreshBtn').addEventListener('click', () => postNui('requestRefresh', { mode: currentMode }));
 qs('#saveSettingsBtn').addEventListener('click', () => postNui('saveSettings', {
   periodDays: Number(qs('#periodDays').value || 14),
   loginDomain: qs('#loginDomain').value,
   businessNameOverride: qs('#businessName').value,
+  businessLogoUrl: qs('#businessLogo').value,
   hourlyRate: Number(qs('#hourlyRate').value || 100)
 }));
 qs('#runPayrollBtn').addEventListener('click', () => postNui('runPayroll'));
 qs('#clockInBtn').addEventListener('click', () => postNui('clockIn'));
 qs('#clockOutBtn').addEventListener('click', () => postNui('clockOut'));
+qs('#submitAdjustmentBtn').addEventListener('click', () => postNui('submitAdjustment', {
+  minutesDelta: Number(qs('#adjustMinutes').value || 0),
+  reason: qs('#adjustReason').value
+}).then(() => postNui('requestRefresh', { mode: 'employee' })));
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') postNui('close');

@@ -30,7 +30,7 @@
       <div class="metrics">
         <article class="card"><h3>Employees</h3><strong id="metricEmployees">0</strong></article>
         <article class="card"><h3>Payroll Total</h3><strong id="metricPayroll">$0.00</strong></article>
-        <article class="card"><h3>Audit Flags</h3><strong id="metricAudit">0</strong></article>
+        <article class="card"><h3>Approvals Pending</h3><strong id="metricAudit">0</strong></article>
       </div>
 
       <section class="card">
@@ -39,12 +39,18 @@
           <label>Pay Period (days)<input id="periodDays" type="number" min="1" max="90" /></label>
           <label>Employee Login Domain<input id="loginDomain" type="text" placeholder="business.org" /></label>
           <label>Business Name Override<input id="businessName" type="text" placeholder="SAST Operations" /></label>
+          <label>Business Logo URL<input id="businessLogo" type="text" placeholder="https://i.imgur.com/logo.png" /></label>
           <label>Hourly Rate<input id="hourlyRate" type="number" min="0" step="0.01" /></label>
         </div>
         <div class="actions-row">
           <button id="saveSettingsBtn" class="btn primary">Save Settings</button>
           <button id="runPayrollBtn" class="btn primary">Run Payroll (Society)</button>
         </div>
+      </section>
+
+      <section class="card">
+        <h3>City Job Grades (Auto Synced)</h3>
+        <ul id="jobGradeList" class="simple-list"></ul>
       </section>
 
       <section class="card">
@@ -56,6 +62,11 @@
       </section>
 
       <section class="card">
+        <h3>Time Adjustment Requests</h3>
+        <ul id="adjustmentList" class="simple-list"></ul>
+      </section>
+
+      <section class="card">
         <h3>Audit / Time Theft Review</h3>
         <ul id="auditList" class="audit-list"></ul>
       </section>
@@ -63,6 +74,7 @@
 
     <section id="employeePanel" class="panel hidden">
       <div class="employee-login card">
+        <img id="employeeLogo" class="business-logo hidden" alt="Business logo" />
         <h2>Employee Payroll Tablet</h2>
         <p id="employeeBusiness">Business</p>
         <strong id="employeeIdentity">employee@business.org</strong>
@@ -77,6 +89,18 @@
       <section class="card actions-row">
         <button id="clockInBtn" class="btn primary">Clock In</button>
         <button id="clockOutBtn" class="btn muted">Clock Out</button>
+      </section>
+
+      <section class="card">
+        <h3>Request Time Adjustment (Supervisor/Command Approval)</h3>
+        <div class="settings-grid">
+          <label>Minute Change (+/-)<input id="adjustMinutes" type="number" min="-180" max="180" /></label>
+          <label>Reason<input id="adjustReason" type="text" placeholder="Missed clock-out by 30 minutes" /></label>
+        </div>
+        <div class="actions-row">
+          <button id="submitAdjustmentBtn" class="btn primary">Submit Adjustment</button>
+        </div>
+        <ul id="employeeAdjustmentHistory" class="simple-list"></ul>
       </section>
     </section>
   </main>

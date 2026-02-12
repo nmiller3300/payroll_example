@@ -17,11 +17,7 @@ local function openPayload(mode)
         end
 
         setFocus(true)
-        SendNUIMessage({
-            action = 'open',
-            payload = payload,
-            mode = mode
-        })
+        SendNUIMessage({ action = 'open', payload = payload, mode = mode })
     end)
 end
 
@@ -60,6 +56,16 @@ end)
 
 RegisterNUICallback('runPayroll', function(_, cb)
     TriggerServerEvent('mybusiness_payroll:server:runPayroll')
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('submitAdjustment', function(data, cb)
+    TriggerServerEvent('mybusiness_payroll:server:submitAdjustment', data)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('reviewAdjustment', function(data, cb)
+    TriggerServerEvent('mybusiness_payroll:server:reviewAdjustment', data)
     cb({ ok = true })
 end)
 

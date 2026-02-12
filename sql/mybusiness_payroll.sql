@@ -21,6 +21,17 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_jobs` (
   UNIQUE KEY `uniq_job` (`job_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `mybusiness_payroll_job_grades` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `job_name` VARCHAR(50) NOT NULL,
+  `grade_level` INT NOT NULL,
+  `grade_name` VARCHAR(100) NULL,
+  `payment` DECIMAL(10,2) NULL,
+  `synced_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_job_grade` (`job_name`,`grade_level`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `mybusiness_payroll_theme` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `job_name` VARCHAR(50) NOT NULL,
@@ -39,6 +50,7 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_settings` (
   `period_anchor` BIGINT NOT NULL,
   `login_domain` VARCHAR(120) NOT NULL DEFAULT 'business.org',
   `business_name_override` VARCHAR(120) NULL,
+  `business_logo_url` VARCHAR(500) NULL,
   `hourly_rate` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
   `updated_by` VARCHAR(50) NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +74,23 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_shifts` (
   PRIMARY KEY (`id`),
   KEY `idx_shift_job_period` (`job_name`,`clock_in_ts`),
   KEY `idx_shift_open` (`citizenid`,`job_name`,`clock_out_ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `mybusiness_payroll_adjustment_requests` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `job_name` VARCHAR(50) NOT NULL,
+  `citizenid` VARCHAR(50) NOT NULL,
+  `employee_name` VARCHAR(120) NOT NULL,
+  `minutes_delta` INT NOT NULL,
+  `reason` VARCHAR(255) NOT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `reviewed_by` VARCHAR(50) NULL,
+  `reviewed_name` VARCHAR(120) NULL,
+  `reviewed_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_adj_job_status` (`job_name`,`status`),
+  KEY `idx_adj_citizen` (`citizenid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `mybusiness_payroll_audit_log` (
