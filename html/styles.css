@@ -16,6 +16,9 @@ body.hidden { display: none; }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .topbar h1 { margin: 0; font-size: 1.4rem; }
 .topbar p { margin: 4px 0 0; color: var(--muted); }
+.brand-wrap { display: flex; align-items: center; gap: 10px; }
+.platform-logo { width: 42px; height: 42px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+
 .panel { display: flex; flex-direction: column; gap: 14px; }
 .hidden { display: none !important; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }

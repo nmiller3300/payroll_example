@@ -26,6 +26,18 @@ function taxText(taxes = {}) {
   return `Tax: ${Number(taxes.taxRate || 0).toFixed(2)}% | SS: ${Number(taxes.ssRate || 0).toFixed(2)}% | Medicare: ${Number(taxes.medicareRate || 0).toFixed(2)}%`;
 }
 
+function renderSharedBranding(payload) {
+  const logoUrl = payload?.settings?.businessLogoUrl || payload?.employee?.businessLogoUrl || '';
+  const platformLogo = qs('#platformLogo');
+  if (logoUrl) {
+    platformLogo.src = logoUrl;
+    platformLogo.classList.remove('hidden');
+  } else {
+    platformLogo.src = '';
+    platformLogo.classList.add('hidden');
+  }
+}
+
 function renderBoss(payload) {
   qs('#bossPanel').classList.remove('hidden');
   qs('#employeePanel').classList.add('hidden');
@@ -120,6 +132,7 @@ window.addEventListener('message', (event) => {
     qs('#platformName').textContent = payload.platform?.name || 'MyBusiness Payroll';
     qs('#platformSubtitle').textContent = payload.platform?.subtitle || '';
     applyTheme(payload.theme || {});
+    renderSharedBranding(payload);
 
     if (currentMode === 'employee') renderEmployee(payload);
     else renderBoss(payload);
@@ -169,7 +182,7 @@ qs('#submitAdjustmentBtn').addEventListener('click', () => postNui('submitAdjust
 
 document.addEventListener('keydown', (event) => {
   const key = (event.key || '').toLowerCase();
-  if (key === 'escape' || key === 'x') {
+  if (key === 'escape') {
     postNui('close');
   }
 });

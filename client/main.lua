@@ -93,7 +93,7 @@ end)
 CreateThread(function()
     while true do
         Wait(0)
-        if isOpen and (IsControlJustReleased(0, 322) or IsControlJustReleased(0, 73)) then
+        if isOpen and IsControlJustReleased(0, 322) then
             setFocus(false)
             SendNUIMessage({ action = 'close' })
         end
