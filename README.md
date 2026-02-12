@@ -1,13 +1,13 @@
 # MyBusiness Payroll (QBCore / FiveM)
 
-MyBusiness Payroll is a **QBCore payroll tablet resource** with an enterprise NUI, server-side access control, and database-backed role grants.
+MyBusiness Payroll is a **QBCore payroll tablet resource** with an enterprise NUI, server-side access control, and database-backed grants.
 
 ---
 
 ## What this script does
 
 - Gives authorized staff a payroll dashboard (`/payroll`).
-- Lets admins grant/revoke payroll access by **job + role**.
+- Lets admins grant/revoke payroll access by **job + minimum job grade**.
 - Pulls city jobs from `QBCore.Shared.Jobs` and syncs them to DB.
 - Persists per-job UI theme settings.
 
@@ -16,7 +16,7 @@ MyBusiness Payroll is a **QBCore payroll tablet resource** with an enterprise NU
 ## Features
 
 - Professional NUI payroll dashboard (dark Command Yellow default)
-- Role-based access (`owner`, `head`, `employee`)
+- Grade-based access (`min_grade` threshold)
 - Admin commands to manage access in-game
 - Optional ACE override support
 - Boss auto-access option
@@ -76,13 +76,14 @@ restart mybusiness_payroll
 A player can open `/payroll` when one of these is true:
 
 1. They have ACE permission (if enabled).
-2. They have a DB access record for their current job with role `owner` or `head`.
+2. They have a DB access record for their current job and their current job grade is **>= `min_grade`**.
 3. Boss fallback is enabled and they are job boss (`Config.AutoBossAccess = true`).
 
-### Employee role behavior
+### Grade-based behavior
 
-- `employee` can exist in access table for your future employee-side workflow,
-- but by default `/payroll` dashboard is restricted to `owner/head` level access.
+- Access is no longer role text (`owner/head/employee`).
+- Access is now strictly by **job grade threshold**.
+- Example: if `min_grade = 3`, only employees with grade 3+ for that job can open the payroll dashboard.
 
 ---
 
@@ -98,20 +99,20 @@ Run:
 
 This prints jobs sourced from `QBCore.Shared.Jobs` and synced to DB.
 
-### Step 2: Grant owner/head access
+### Step 2: Grant payroll access by minimum grade
 
 Use:
 
 ```txt
-/payrollgrant [id] [job] [role]
+/payrollgrant [id] [job] [grade]
 ```
 
 Examples:
 
 ```txt
-/payrollgrant 12 police owner
-/payrollgrant 34 mechanic head
-/payrollgrant 22 taxi employee
+/payrollgrant 12 police 4
+/payrollgrant 34 mechanic 3
+/payrollgrant 22 taxi 2
 ```
 
 ### Step 3: Revoke access if needed
@@ -136,13 +137,10 @@ Open payroll dashboard for authorized users.
 ### `/payrolljobs`
 Lists city jobs available for payroll assignment.
 
-### `/payrollgrant [id] [job] [role]`
-Grant payroll access for player server ID + job.
+### `/payrollgrant [id] [job] [grade]`
+Grant payroll access for player server ID + job with minimum required job grade.
 
-- `role` must be one of:
-  - `owner`
-  - `head`
-  - `employee`
+- `grade` must be a number `0` or higher.
 
 ### `/payrollrevoke [id] [job]`
 Marks payroll access inactive for that player/job.
@@ -187,6 +185,9 @@ Any player with that ACE can open payroll dashboard.
 - `Config.AutoBossAccess`
   - If true, job bosses get dashboard access automatically
 
+- `Config.DefaultMinimumGrade`
+  - Default minimum job grade used when grant command grade is omitted
+
 - `Config.Platform`
   - Branding info (name/subtitle/logo text)
 
@@ -199,15 +200,12 @@ Any player with that ACE can open payroll dashboard.
 - `Config.BusinessProfiles`
   - Per-job profile text display (fallback to `default`)
 
-- `Config.AccessRoles`
-  - Numeric hierarchy for roles (`owner > head > employee`)
-
 ---
 
 ## Database Tables
 
 ### `mybusiness_payroll_access`
-Stores user payroll access by `citizenid + job_name`.
+Stores user payroll access by `citizenid + job_name` and required `min_grade`.
 
 ### `mybusiness_payroll_jobs`
 Stores jobs synced from QBCore shared jobs.
@@ -220,8 +218,8 @@ Stores serialized theme payload by job.
 ## Typical Real Server Flow
 
 1. Admin ensures job list with `/payrolljobs`.
-2. Admin grants owner/head access for department leadership.
-3. Owner/head opens `/payroll`.
+2. Admin grants payroll access with minimum grade for department leadership.
+3. Authorized leadership opens `/payroll`.
 4. They use dashboard + save theme.
 5. Theme persists per job in DB.
 
@@ -243,6 +241,7 @@ Check:
 - `ensure oxmysql` and `ensure mybusiness_payroll`
 - DB connection health
 - access grant exists for that citizen/job
+- player grade meets `min_grade`
 - ACE setting if enabled
 
 ### Theme not saving
@@ -254,4 +253,4 @@ Check DB table `mybusiness_payroll_theme` and console errors from oxmysql.
 
 - Current payroll rows are placeholder data in server code (`buildFallbackRows`).
 - Replace with your actual payroll/time clock DB queries.
-- This resource already has the access-control/database foundation needed for production extensions.
+- This resource now uses job grade thresholds instead of text roles for access control.

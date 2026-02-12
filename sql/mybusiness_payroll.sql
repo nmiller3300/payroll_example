@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_access` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `citizenid` VARCHAR(50) NOT NULL,
   `job_name` VARCHAR(50) NOT NULL,
-  `role` VARCHAR(20) NOT NULL DEFAULT 'employee',
+  `min_grade` INT NOT NULL DEFAULT 3,
   `granted_by` VARCHAR(50) NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,

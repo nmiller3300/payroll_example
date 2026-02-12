@@ -25,12 +25,12 @@ local function fetchJobsFromCore()
 end
 
 local function ensureDatabase()
-    MySQL.query.await([[ 
+    MySQL.query.await([[
         CREATE TABLE IF NOT EXISTS mybusiness_payroll_access (
             id INT AUTO_INCREMENT PRIMARY KEY,
             citizenid VARCHAR(50) NOT NULL,
             job_name VARCHAR(50) NOT NULL,
-            role VARCHAR(20) NOT NULL DEFAULT 'employee',
+            min_grade INT NOT NULL DEFAULT 3,
             granted_by VARCHAR(50) NULL,
             active TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -61,6 +61,18 @@ local function ensureDatabase()
             UNIQUE KEY uniq_job_theme (job_name)
         )
     ]])
+
+    local hasMinGrade = MySQL.query.await([[
+        SELECT COUNT(*) AS total
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'mybusiness_payroll_access'
+          AND COLUMN_NAME = 'min_grade'
+    ]])
+
+    if hasMinGrade and hasMinGrade[1] and tonumber(hasMinGrade[1].total) == 0 then
+        MySQL.query.await([[ALTER TABLE mybusiness_payroll_access ADD COLUMN min_grade INT NOT NULL DEFAULT 3]])
+    end
 end
 
 local function syncJobsToDatabase()
@@ -77,10 +89,6 @@ local function syncJobsToDatabase()
     debugLog(('Synced %s jobs to mybusiness_payroll_jobs'):format(#jobs))
 end
 
-local function roleWeight(role)
-    return Config.AccessRoles[role or 'employee'] or 0
-end
-
 local function getPlayer(source)
     return QBCore.Functions.GetPlayer(source)
 end
@@ -93,9 +101,22 @@ local function getJobName(player)
     return player and player.PlayerData and player.PlayerData.job and player.PlayerData.job.name or 'default'
 end
 
+local function getJobGrade(player)
+    if not player or not player.PlayerData or not player.PlayerData.job then
+        return 0
+    end
+
+    local grade = player.PlayerData.job.grade
+    if type(grade) == 'table' then
+        return tonumber(grade.level) or tonumber(grade.grade) or 0
+    end
+
+    return tonumber(grade) or 0
+end
+
 local function getAccessRecord(citizenId, jobName)
     local rows = MySQL.query.await([[
-        SELECT citizenid, job_name, role, active
+        SELECT citizenid, job_name, min_grade, active
         FROM mybusiness_payroll_access
         WHERE citizenid = ? AND job_name = ?
         LIMIT 1
@@ -106,27 +127,28 @@ end
 
 local function canOpenPayroll(source)
     if Config.UseAcePermission and IsPlayerAceAllowed(source, Config.RequiredAce) then
-        return true, 'owner'
+        return true
     end
 
     local player = getPlayer(source)
     if not player then
-        return false, nil
+        return false
     end
 
     local citizenId = getCitizenId(player)
     local jobName = getJobName(player)
     local access = getAccessRecord(citizenId, jobName)
+    local currentGrade = getJobGrade(player)
 
-    if access and tonumber(access.active) == 1 and roleWeight(access.role) >= roleWeight('head') then
-        return true, access.role
+    if access and tonumber(access.active) == 1 and currentGrade >= (tonumber(access.min_grade) or Config.DefaultMinimumGrade) then
+        return true
     end
 
     if Config.AutoBossAccess and player.PlayerData.job and player.PlayerData.job.isboss then
-        return true, 'owner'
+        return true
     end
 
-    return false, nil
+    return false
 end
 
 local function buildFallbackRows(player)
@@ -214,8 +236,7 @@ local function buildPayload(source)
 end
 
 QBCore.Functions.CreateCallback('mybusiness_payroll:server:getDashboardPayload', function(source, cb)
-    local permitted = canOpenPayroll(source)
-    if not permitted then
+    if not canOpenPayroll(source) then
         cb({ ok = false, message = 'unauthorized' })
         return
     end
@@ -225,8 +246,7 @@ end)
 
 RegisterNetEvent('mybusiness_payroll:server:saveTheme', function(payload)
     local sourcePlayer = source
-    local permitted = canOpenPayroll(sourcePlayer)
-    if not permitted then
+    if not canOpenPayroll(sourcePlayer) then
         return
     end
 
@@ -254,9 +274,8 @@ QBCore.Commands.Add(
     {},
     false,
     function(source)
-        local permitted = canOpenPayroll(source)
-        if not permitted then
-            TriggerClientEvent('QBCore:Notify', source, 'Only business owner/department head payroll access is allowed.', 'error')
+        if not canOpenPayroll(source) then
+            TriggerClientEvent('QBCore:Notify', source, 'Payroll access denied for your current job grade.', 'error')
             return
         end
 
@@ -276,11 +295,11 @@ QBCore.Commands.Add(
 
 QBCore.Commands.Add(
     'payrollgrant',
-    'Grant payroll access role to a player for a city job (Admin only)',
+    'Grant payroll access by minimum job grade (Admin only)',
     {
         { name = 'id', help = 'Server ID' },
         { name = 'job', help = 'Job name from city jobs (example: police)' },
-        { name = 'role', help = 'owner/head/employee' }
+        { name = 'grade', help = 'Minimum job grade required (example: 3)' }
     },
     true,
     function(source, args)
@@ -310,9 +329,9 @@ QBCore.Commands.Add(
             return
         end
 
-        local role = tostring(args[3] or 'employee'):lower()
-        if not Config.AccessRoles[role] then
-            TriggerClientEvent('QBCore:Notify', source, 'Invalid role. Use owner/head/employee.', 'error')
+        local minGrade = tonumber(args[3] or Config.DefaultMinimumGrade)
+        if not minGrade or minGrade < 0 then
+            TriggerClientEvent('QBCore:Notify', source, 'Invalid grade. Use a number 0 or higher.', 'error')
             return
         end
 
@@ -321,23 +340,23 @@ QBCore.Commands.Add(
         local grantedBy = adminPlayer and getCitizenId(adminPlayer) or 'console'
 
         MySQL.insert.await([[
-            INSERT INTO mybusiness_payroll_access (citizenid, job_name, role, granted_by, active)
+            INSERT INTO mybusiness_payroll_access (citizenid, job_name, min_grade, granted_by, active)
             VALUES (?, ?, ?, ?, 1)
-            ON DUPLICATE KEY UPDATE role = VALUES(role), granted_by = VALUES(granted_by), active = 1
-        ]], { citizenId, jobName, role, grantedBy })
+            ON DUPLICATE KEY UPDATE min_grade = VALUES(min_grade), granted_by = VALUES(granted_by), active = 1
+        ]], { citizenId, jobName, minGrade, grantedBy })
 
         if source > 0 then
-            TriggerClientEvent('QBCore:Notify', source, ('Granted %s payroll access for %s.'):format(role, jobName), 'success')
+            TriggerClientEvent('QBCore:Notify', source, ('Granted payroll access for %s (min grade %s).'):format(jobName, minGrade), 'success')
         end
 
-        TriggerClientEvent('QBCore:Notify', targetSource, ('Payroll access granted: %s (%s).'):format(jobName, role), 'success')
+        TriggerClientEvent('QBCore:Notify', targetSource, ('Payroll access granted for %s (min grade %s).'):format(jobName, minGrade), 'success')
     end,
     Config.AdminPermission
 )
 
 QBCore.Commands.Add(
     'payrollrevoke',
-    'Revoke payroll access role for a player job (Admin only)',
+    'Revoke payroll access for a player job (Admin only)',
     {
         { name = 'id', help = 'Server ID' },
         { name = 'job', help = 'Job name to revoke' }

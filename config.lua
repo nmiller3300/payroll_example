@@ -7,6 +7,7 @@ Config.AdminPermission = 'admin'
 Config.UseAcePermission = false
 Config.RequiredAce = 'payroll.command'
 Config.AutoBossAccess = true
+Config.DefaultMinimumGrade = 3
 
 Config.Platform = {
     name = 'MyBusiness Payroll',
@@ -53,10 +54,4 @@ Config.BusinessProfiles = {
         dashboardTitle = 'Command Dashboard',
         dashboardSubtitle = 'Agency-wide payroll status and time intelligence'
     }
-}
-
-Config.AccessRoles = {
-    owner = 3,
-    head = 2,
-    employee = 1
 }
