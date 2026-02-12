@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyBusiness Payroll</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="hidden">
+  <div class="hex-overlay"></div>
+
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1 id="platformName">MyBusiness Payroll</h1>
+        <p id="platformSubtitle">Workforce Compensation & Time Management</p>
+      </div>
+      <div class="top-actions">
+        <button id="refreshBtn" class="btn muted">Refresh</button>
+        <button id="closeBtn" class="btn muted">Close</button>
+      </div>
+    </header>
+
+    <section id="bossPanel" class="panel hidden">
+      <div class="panel-head">
+        <h2 id="bossTitle">Command Dashboard</h2>
+        <p id="bossSub">Agency-wide payroll status and time intelligence</p>
+      </div>
+
+      <div class="metrics">
+        <article class="card"><h3>Employees</h3><strong id="metricEmployees">0</strong></article>
+        <article class="card"><h3>Payroll Total</h3><strong id="metricPayroll">$0.00</strong></article>
+        <article class="card"><h3>Approvals Pending</h3><strong id="metricAudit">0</strong></article>
+      </div>
+
+      <section class="card">
+        <h3>Payroll Settings</h3>
+        <div class="settings-grid">
+          <label>Pay Period (days)<input id="periodDays" type="number" min="1" max="90" /></label>
+          <label>Employee Login Domain<input id="loginDomain" type="text" placeholder="business.org" /></label>
+          <label>Business Name Override<input id="businessName" type="text" placeholder="SAST Operations" /></label>
+          <label>Business Logo URL<input id="businessLogo" type="text" placeholder="https://i.imgur.com/logo.png" /></label>
+          <label>Hourly Rate<input id="hourlyRate" type="number" min="0" step="0.01" /></label>
+        </div>
+        <div class="actions-row">
+          <button id="saveSettingsBtn" class="btn primary">Save Settings</button>
+          <button id="runPayrollBtn" class="btn primary">Run Payroll (Society)</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>City Job Grades (Auto Synced)</h3>
+        <ul id="jobGradeList" class="simple-list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Payroll Entries</h3>
+        <table>
+          <thead><tr><th>Employee</th><th>Hours</th><th>Pay</th><th>Status</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h3>Time Adjustment Requests</h3>
+        <ul id="adjustmentList" class="simple-list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Audit / Time Theft Review</h3>
+        <ul id="auditList" class="audit-list"></ul>
+      </section>
+    </section>
+
+    <section id="employeePanel" class="panel hidden">
+      <div class="employee-login card">
+        <img id="employeeLogo" class="business-logo hidden" alt="Business logo" />
+        <h2>Employee Payroll Tablet</h2>
+        <p id="employeeBusiness">Business</p>
+        <strong id="employeeIdentity">employee@business.org</strong>
+      </div>
+
+      <div class="metrics">
+        <article class="card"><h3>Current Status</h3><strong id="employeeStatus">Clocked Out</strong></article>
+        <article class="card"><h3>Hours This Period</h3><strong id="employeeHours">0.00</strong></article>
+        <article class="card"><h3>Projected Pay</h3><strong id="employeeProjected">$0.00</strong></article>
+      </div>
+
+      <section class="card actions-row">
+        <button id="clockInBtn" class="btn primary">Clock In</button>
+        <button id="clockOutBtn" class="btn muted">Clock Out</button>
+      </section>
+
+      <section class="card">
+        <h3>Request Time Adjustment (Supervisor/Command Approval)</h3>
+        <div class="settings-grid">
+          <label>Minute Change (+/-)<input id="adjustMinutes" type="number" min="-180" max="180" /></label>
+          <label>Reason<input id="adjustReason" type="text" placeholder="Missed clock-out by 30 minutes" /></label>
+        </div>
+        <div class="actions-row">
+          <button id="submitAdjustmentBtn" class="btn primary">Submit Adjustment</button>
+        </div>
+        <ul id="employeeAdjustmentHistory" class="simple-list"></ul>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
