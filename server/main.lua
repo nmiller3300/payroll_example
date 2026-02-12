@@ -290,9 +290,7 @@ local function ensureDatabase()
     ensureColumn('mybusiness_payroll_settings', 'hourly_rate', 'DECIMAL(10,2) NOT NULL DEFAULT 100.00')
     ensureColumn('mybusiness_payroll_shifts', 'grade_level', 'INT NOT NULL DEFAULT 0')
 
-    MySQL.insert.await([[INSERT INTO mybusiness_payroll_tax (id, tax_rate, ss_rate, medicare_rate)
-        VALUES (1, 0.00, 0.00, 0.00)
-        ON DUPLICATE KEY UPDATE id = VALUES(id)]])
+    MySQL.insert.await('INSERT IGNORE INTO mybusiness_payroll_tax (id, tax_rate, ss_rate, medicare_rate) VALUES (1, 0.00, 0.00, 0.00)')
 end
 
 local function syncJobsToDatabase()

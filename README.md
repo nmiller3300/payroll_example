@@ -77,3 +77,4 @@ ensure mybusiness_payroll
 
 - If you see MySQL errors around `mybusiness_payroll_settings` (for example `Column 'hourly_rate' cannot be null`), restart the resource after updating so the bootstrap migration can add missing columns.
 - Importing `sql/mybusiness_payroll.sql` is recommended for fresh installs, but runtime bootstrap also creates/updates required tables and columns.
+- SQL import can show `Table already exists` notes when re-running on an existing DB; those are informational. The seed now uses `INSERT IGNORE` for tax defaults to avoid duplicate/deprecation warnings on modern MySQL versions.

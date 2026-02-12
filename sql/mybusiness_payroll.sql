@@ -156,6 +156,5 @@ CREATE TABLE IF NOT EXISTS `mybusiness_payroll_audit_log` (
   KEY `idx_audit_job_time` (`job_name`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `mybusiness_payroll_tax` (`id`,`tax_rate`,`ss_rate`,`medicare_rate`)
-VALUES (1,0.00,0.00,0.00)
-ON DUPLICATE KEY UPDATE `id` = VALUES(`id`);
+INSERT IGNORE INTO `mybusiness_payroll_tax` (`id`,`tax_rate`,`ss_rate`,`medicare_rate`)
+VALUES (1,0.00,0.00,0.00);
