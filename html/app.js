@@ -168,5 +168,8 @@ qs('#submitAdjustmentBtn').addEventListener('click', () => postNui('submitAdjust
 }).then(() => postNui('requestRefresh', { mode: 'employee' })));
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') postNui('close');
+  const key = (event.key || '').toLowerCase();
+  if (key === 'escape' || key === 'x') {
+    postNui('close');
+  }
 });
