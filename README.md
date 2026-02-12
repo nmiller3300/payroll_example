@@ -73,6 +73,10 @@ ensure qb-management
 ensure mybusiness_payroll
 ```
 
+## Developer Handoff
+
+- See `docs/DEVELOPER_HANDOFF.md` for a structured implementation summary, command map, architecture notes, and prioritized next steps for contributors.
+
 ## Troubleshooting
 
 - If you see MySQL errors around `mybusiness_payroll_settings` (for example `Column 'hourly_rate' cannot be null`), restart the resource after updating so the bootstrap migration can add missing columns.
