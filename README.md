@@ -1,256 +1,127 @@
 # MyBusiness Payroll (QBCore / FiveM)
 
-MyBusiness Payroll is a **QBCore payroll tablet resource** with an enterprise NUI, server-side access control, and database-backed grants.
+Enterprise payroll tablet with **separate boss and employee experiences**, configurable pay periods, society-funded payroll runs, and audit tooling.
+
+## What changed in this build
+
+- **Boss tablet (`/payroll`)** is now separated from **Employee tablet (`/payrollemployee`)**.
+- Business owners can set **pay period length**, **employee login domain**, **business display name**, and **hourly rate** from the boss tablet.
+- Employees see a premium fake login identity in tablet format: `firstname.lastname@business.org`.
+- Added real clock endpoints and shift storage (`clock in/out`) for employee-side use.
+- Added audit checks for long shifts, missing clock-outs, and extreme period totals for theft/time abuse review.
+- Added optional permission file (`permissions.lua`) for `license:`, `fivem:`, and other identifiers.
 
 ---
 
-## What this script does
+## Commands
 
-- Gives authorized staff a payroll dashboard (`/payroll`).
-- Lets admins grant/revoke payroll access by **job + minimum job grade**.
-- Pulls city jobs from `QBCore.Shared.Jobs` and syncs them to DB.
-- Persists per-job UI theme settings.
-
----
-
-## Features
-
-- Professional NUI payroll dashboard (dark Command Yellow default)
-- Grade-based access (`min_grade` threshold)
-- Admin commands to manage access in-game
-- Optional ACE override support
-- Boss auto-access option
-- Automatic DB table creation on script start
+- `/payroll` → Boss/command dashboard (requires boss-level access).
+- `/payrollemployee` → Employee payroll tablet and clock controls.
+- `/payrollgrant [id] [job] [grade]` → grant boss dashboard access by job + minimum grade.
+- `/payrollrevoke [id] [job]` → revoke boss dashboard access.
+- `/payrolljobs` → print synced city jobs to server console.
 
 ---
 
-## Requirements
+## Access model
 
-- FiveM server
-- QBCore
-- oxmysql
+Boss access is granted when **any** of these pass:
+
+1. ACE node (if enabled): `Config.RequiredAce`
+2. Identifier allow-list (`permissions.lua`) if enabled
+3. DB grant in `mybusiness_payroll_access` with `grade >= min_grade`
+4. Auto-boss fallback (`Config.AutoBossAccess = true` and `PlayerData.job.isboss = true`)
+
+Employee tablet is open to all logged-in players and always job-scoped.
 
 ---
 
-## Installation (Complete)
+## Permission file (`permissions.lua`)
 
-1. Put this resource in your server resources folder:
-   - Example: `resources/[qb]/mybusiness_payroll`
+Use this if you want to avoid manual grant command usage for trusted IDs.
 
-2. Ensure dependencies and this script in `server.cfg`:
+```lua
+Permissions.IdentifierAllowList = {
+  ['license:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'] = true,
+  ['fivem:123456'] = true,
+}
+```
+
+`server/main.lua` checks these identifiers with `GetPlayerIdentifiers(source)`.
+
+---
+
+## Pay period and society payout
+
+Boss tablet settings write to `mybusiness_payroll_settings`.
+
+Config limits:
+- `Config.Payroll.minPeriodDays`
+- `Config.Payroll.maxPeriodDays`
+
+When boss clicks **Run Payroll (Society)**:
+- system totals current pay-period payroll
+- attempts to debit society account through `qb-management` (`RemoveMoney(jobName, amount)`)
+- logs run in audit table even if society resource is unavailable
+
+---
+
+## Employee tablet behavior
+
+Employee tablet shows:
+- Fake login identity (`firstname.lastname@configured-domain`)
+- Business name override from boss settings
+- Clocked-in status
+- Hours this period
+- Projected pay
+- Clock In / Clock Out actions
+
+---
+
+## Database tables
+
+- `mybusiness_payroll_access` → boss access grants by grade threshold
+- `mybusiness_payroll_jobs` → city job sync map
+- `mybusiness_payroll_theme` → per-job theme payload
+- `mybusiness_payroll_settings` → period + branding + rate config per job
+- `mybusiness_payroll_shifts` → raw employee clock events
+- `mybusiness_payroll_audit_log` → immutable action/audit trail
+
+You can import `sql/mybusiness_payroll.sql` manually; script also auto-creates on startup.
+
+---
+
+## Installation
+
+1. Put resource in server resources folder.
+2. Ensure in `server.cfg`:
 
 ```cfg
 ensure oxmysql
 ensure qb-core
+ensure qb-management
 ensure mybusiness_payroll
 ```
 
-3. Import SQL (recommended):
-   - File: `sql/mybusiness_payroll.sql`
-   - Note: the script also auto-creates missing tables on startup.
-
-4. Restart server or run:
+3. Restart:
 
 ```txt
 restart oxmysql
 restart mybusiness_payroll
 ```
 
-5. Check console for startup errors.
-
 ---
 
-## File Structure
-
-- `fxmanifest.lua` - resource manifest
-- `config.lua` - script settings
-- `server/main.lua` - access logic, commands, DB sync
-- `client/main.lua` - NUI open/close callbacks
-- `html/` - NUI files
-- `sql/mybusiness_payroll.sql` - DB schema
-
----
-
-## How Access Works
-
-A player can open `/payroll` when one of these is true:
-
-1. They have ACE permission (if enabled).
-2. They have a DB access record for their current job and their current job grade is **>= `min_grade`**.
-3. Boss fallback is enabled and they are job boss (`Config.AutoBossAccess = true`).
-
-### Grade-based behavior
-
-- Access is no longer role text (`owner/head/employee`).
-- Access is now strictly by **job grade threshold**.
-- Example: if `min_grade = 3`, only employees with grade 3+ for that job can open the payroll dashboard.
-
----
-
-## Admin Setup Workflow (Recommended)
-
-### Step 1: Verify jobs loaded from city
-
-Run:
-
-```txt
-/payrolljobs
-```
-
-This prints jobs sourced from `QBCore.Shared.Jobs` and synced to DB.
-
-### Step 2: Grant payroll access by minimum grade
-
-Use:
-
-```txt
-/payrollgrant [id] [job] [grade]
-```
-
-Examples:
-
-```txt
-/payrollgrant 12 police 4
-/payrollgrant 34 mechanic 3
-/payrollgrant 22 taxi 2
-```
-
-### Step 3: Revoke access if needed
-
-```txt
-/payrollrevoke [id] [job]
-```
-
-Example:
-
-```txt
-/payrollrevoke 22 taxi
-```
-
----
-
-## Commands (Full Reference)
-
-### `/payroll`
-Open payroll dashboard for authorized users.
-
-### `/payrolljobs`
-Lists city jobs available for payroll assignment.
-
-### `/payrollgrant [id] [job] [grade]`
-Grant payroll access for player server ID + job with minimum required job grade.
-
-- `grade` must be a number `0` or higher.
-
-### `/payrollrevoke [id] [job]`
-Marks payroll access inactive for that player/job.
-
----
-
-## Permissions
-
-### QBCore admin permission for grant/revoke
-
-`Config.AdminPermission = 'admin'`
-
-This controls who can run `payrollgrant` and `payrollrevoke`.
-
-### Optional ACE override
-
-If enabled:
-
-```lua
-Config.UseAcePermission = true
-Config.RequiredAce = 'payroll.command'
-```
-
-Any player with that ACE can open payroll dashboard.
-
----
-
-## Configuration (`config.lua`)
-
-- `Config.CommandName`
-  - Dashboard command name (default `payroll`)
-
-- `Config.AdminPermission`
-  - QBCore permission used for admin management commands
-
-- `Config.UseAcePermission`
-  - Enable ACE override for dashboard access
-
-- `Config.RequiredAce`
-  - ACE node used when ACE override is enabled
-
-- `Config.AutoBossAccess`
-  - If true, job bosses get dashboard access automatically
-
-- `Config.DefaultMinimumGrade`
-  - Default minimum job grade used when grant command grade is omitted
-
-- `Config.Platform`
-  - Branding info (name/subtitle/logo text)
-
-- `Config.DefaultTheme`
-  - Default visual theme values
-
-- `Config.ThemePresets`
-  - Additional presets
-
-- `Config.BusinessProfiles`
-  - Per-job profile text display (fallback to `default`)
-
----
-
-## Database Tables
-
-### `mybusiness_payroll_access`
-Stores user payroll access by `citizenid + job_name` and required `min_grade`.
-
-### `mybusiness_payroll_jobs`
-Stores jobs synced from QBCore shared jobs.
-
-### `mybusiness_payroll_theme`
-Stores serialized theme payload by job.
-
----
-
-## Typical Real Server Flow
-
-1. Admin ensures job list with `/payrolljobs`.
-2. Admin grants payroll access with minimum grade for department leadership.
-3. Authorized leadership opens `/payroll`.
-4. They use dashboard + save theme.
-5. Theme persists per job in DB.
-
----
-
-## Troubleshooting
-
-### “Target player is not online.”
-`/payrollgrant` and `/payrollrevoke` require an online target ID.
-
-### “Unknown city job”
-The job must exist in `QBCore.Shared.Jobs`.
-
-### “Admin permission required.”
-Your account lacks `Config.AdminPermission` in QBCore permissions.
-
-### Dashboard does not open
-Check:
-- `ensure oxmysql` and `ensure mybusiness_payroll`
-- DB connection health
-- access grant exists for that citizen/job
-- player grade meets `min_grade`
-- ACE setting if enabled
-
-### Theme not saving
-Check DB table `mybusiness_payroll_theme` and console errors from oxmysql.
-
----
-
-## Important Notes
-
-- Current payroll rows are placeholder data in server code (`buildFallbackRows`).
-- Replace with your actual payroll/time clock DB queries.
-- This resource now uses job grade thresholds instead of text roles for access control.
+## Extra ideas to add next (recommended)
+
+Boss-side:
+- Shift approval queue with reason-required reject flow
+- Grade-specific overtime multipliers and holiday rates
+- CSV export (accounting, finance handoff)
+- Department-based filters and delegated approvers
+
+Employee-side:
+- Missed punch correction requests
+- PTO request workflow
+- Payslip history screen
+- Alert feed when payroll is approved/paid

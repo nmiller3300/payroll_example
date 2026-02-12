@@ -1,55 +1,79 @@
 local QBCore = exports['qb-core']:GetCoreObject()
-local uiOpen = false
+local isOpen = false
 
-local function setUiVisible(visible)
-    uiOpen = visible
-    SetNuiFocus(visible, visible)
-    SendNUIMessage({
-        action = 'setVisible',
-        payload = { visible = visible }
-    })
+local function setFocus(state)
+    SetNuiFocus(state, state)
+    SetNuiFocusKeepInput(state)
+    isOpen = state
 end
 
-local function openPayrollUi(profile, summary, rows, theme, platform)
-    SendNUIMessage({
-        action = 'bootstrap',
-        payload = {
-            platform = platform or Config.Platform,
-            theme = theme or Config.DefaultTheme,
-            profile = profile,
-            summary = summary,
-            rows = rows
-        }
-    })
+local function openPayload(mode)
+    local callbackName = mode == 'boss' and 'mybusiness_payroll:server:getBossPayload' or 'mybusiness_payroll:server:getEmployeePayload'
+    QBCore.Functions.TriggerCallback(callbackName, function(payload)
+        if not payload or not payload.ok then
+            local reason = payload and payload.message or 'unknown'
+            QBCore.Functions.Notify(('Payroll tablet unavailable (%s).'):format(reason), 'error')
+            return
+        end
 
-    setUiVisible(true)
+        setFocus(true)
+        SendNUIMessage({
+            action = 'open',
+            payload = payload,
+            mode = mode
+        })
+    end)
 end
 
-RegisterNetEvent('mybusiness_payroll:client:openForCommandStaff', function(profile, summary, rows, theme, platform)
-    openPayrollUi(profile, summary, rows, theme, platform)
+RegisterNetEvent('mybusiness_payroll:client:openBoss', function()
+    openPayload('boss')
+end)
+
+RegisterNetEvent('mybusiness_payroll:client:openEmployee', function()
+    openPayload('employee')
 end)
 
 RegisterNUICallback('close', function(_, cb)
-    setUiVisible(false)
+    setFocus(false)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('saveTheme', function(payload, cb)
-    TriggerServerEvent('mybusiness_payroll:server:saveTheme', payload)
+RegisterNUICallback('saveTheme', function(data, cb)
+    TriggerServerEvent('mybusiness_payroll:server:saveTheme', data)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('requestRefresh', function(_, cb)
-    QBCore.Functions.TriggerCallback('mybusiness_payroll:server:getDashboardPayload', function(response)
-        cb(response or { ok = false })
-    end)
+RegisterNUICallback('saveSettings', function(data, cb)
+    TriggerServerEvent('mybusiness_payroll:server:updateSettings', data)
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('clockIn', function(_, cb)
+    TriggerServerEvent('mybusiness_payroll:server:clockIn')
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('clockOut', function(_, cb)
+    TriggerServerEvent('mybusiness_payroll:server:clockOut')
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('runPayroll', function(_, cb)
+    TriggerServerEvent('mybusiness_payroll:server:runPayroll')
+    cb({ ok = true })
+end)
+
+RegisterNUICallback('requestRefresh', function(data, cb)
+    openPayload(data and data.mode == 'employee' and 'employee' or 'boss')
+    cb({ ok = true })
 end)
 
 CreateThread(function()
     while true do
-        if uiOpen and IsControlJustReleased(0, 322) then -- ESC
-            setUiVisible(false)
-        end
         Wait(0)
+        if isOpen and IsControlJustReleased(0, 322) then
+            setFocus(false)
+            SendNUIMessage({ action = 'close' })
+        end
     end
 end)

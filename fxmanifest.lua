@@ -4,11 +4,15 @@ game 'gta5'
 lua54 'yes'
 
 author 'MyBusiness Payroll'
-description 'QBCore payroll command dashboard with enterprise Command Yellow theme'
-version '1.3.0'
+description 'Enterprise payroll + employee tablet for QBCore'
+version '1.2.0'
+
+dependency 'qb-core'
+dependency 'oxmysql'
 
 shared_scripts {
-    'config.lua'
+    'config.lua',
+    'permissions.lua'
 }
 
 client_scripts {
@@ -25,6 +29,5 @@ ui_page 'html/index.html'
 files {
     'html/index.html',
     'html/styles.css',
-    'html/app.js',
-    'sql/mybusiness_payroll.sql'
+    'html/app.js'
 }
