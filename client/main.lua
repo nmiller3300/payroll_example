@@ -101,9 +101,17 @@ end)
 CreateThread(function()
     while true do
         Wait(0)
-        if isOpen and IsControlJustReleased(0, 322) then
-            setFocus(false)
-            SendNUIMessage({ action = 'close' })
+        if isOpen then
+            DisableControlAction(0, 1, true)   -- Look left/right
+            DisableControlAction(0, 2, true)   -- Look up/down
+            DisableControlAction(0, 24, true)  -- Attack
+            DisableControlAction(0, 25, true)  -- Aim
+            DisableControlAction(0, 257, true) -- Attack 2
+
+            if IsControlJustReleased(0, 322) then
+                setFocus(false)
+                SendNUIMessage({ action = 'close' })
+            end
         end
     end
 end)

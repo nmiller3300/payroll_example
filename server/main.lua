@@ -287,6 +287,7 @@ local function ensureDatabase()
     ensureColumn('mybusiness_payroll_settings', 'business_logo_url', 'VARCHAR(500) NULL')
     ensureColumn('mybusiness_payroll_settings', 'boss_primary_color', 'VARCHAR(10) NULL')
     ensureColumn('mybusiness_payroll_settings', 'employee_primary_color', 'VARCHAR(10) NULL')
+    ensureColumn('mybusiness_payroll_settings', 'hourly_rate', 'DECIMAL(10,2) NOT NULL DEFAULT 100.00')
     ensureColumn('mybusiness_payroll_shifts', 'grade_level', 'INT NOT NULL DEFAULT 0')
 
     MySQL.insert.await([[INSERT INTO mybusiness_payroll_tax (id, tax_rate, ss_rate, medicare_rate)
@@ -322,6 +323,7 @@ local function syncJobsToDatabase()
             Config.Payroll.defaultPeriodDays,
             os.time(),
             (Config.BusinessProfiles.default and Config.BusinessProfiles.default.loginDomain) or 'business.org',
+            nil,
             nil,
             Config.DefaultTheme.primaryColor,
             Config.DefaultTheme.primaryColor,
@@ -375,8 +377,13 @@ local function getPeriodRange(settings)
     return periodStart, periodEnd, periodDays
 end
 
-local function getCurrentShift(citizenId, jobName)
-    local rows = MySQL.query.await('SELECT id, clock_in_ts FROM mybusiness_payroll_shifts WHERE citizenid = ? AND job_name = ? AND clock_out_ts IS NULL ORDER BY clock_in_ts DESC LIMIT 1', { citizenId, jobName })
+local function getCurrentShift(citizenId, jobName, anyJob)
+    local rows
+    if anyJob then
+        rows = MySQL.query.await('SELECT id, job_name, clock_in_ts FROM mybusiness_payroll_shifts WHERE citizenid = ? AND clock_out_ts IS NULL ORDER BY clock_in_ts DESC LIMIT 1', { citizenId })
+    else
+        rows = MySQL.query.await('SELECT id, job_name, clock_in_ts FROM mybusiness_payroll_shifts WHERE citizenid = ? AND job_name = ? AND clock_out_ts IS NULL ORDER BY clock_in_ts DESC LIMIT 1', { citizenId, jobName })
+    end
     return rows and rows[1] or nil
 end
 
@@ -814,8 +821,15 @@ RegisterNetEvent('mybusiness_payroll:server:clockIn', function()
 
     local citizenId = getCitizenId(player)
     local jobName = getJobName(player)
-    if getCurrentShift(citizenId, jobName) then
+    local currentShift = getCurrentShift(citizenId, jobName)
+    if currentShift then
         TriggerClientEvent('QBCore:Notify', src, 'You are already clocked in.', 'error')
+        return
+    end
+
+    local otherShift = getCurrentShift(citizenId, nil, true)
+    if otherShift then
+        TriggerClientEvent('QBCore:Notify', src, ('You are already clocked in under %s. Clock out first.'):format(otherShift.job_name or 'another job'), 'error')
         return
     end
 
@@ -828,6 +842,7 @@ RegisterNetEvent('mybusiness_payroll:server:clockIn', function()
     })
 
     writeAuditLog(jobName, 'CLOCK_IN', citizenId, getFullName(player), citizenId, {})
+    TriggerClientEvent('QBCore:Notify', src, 'Clocked in successfully.', 'success')
 end)
 
 RegisterNetEvent('mybusiness_payroll:server:clockOut', function()
@@ -843,7 +858,7 @@ RegisterNetEvent('mybusiness_payroll:server:clockOut', function()
 
     local citizenId = getCitizenId(player)
     local jobName = getJobName(player)
-    local openShift = getCurrentShift(citizenId, jobName)
+    local openShift = getCurrentShift(citizenId, jobName) or getCurrentShift(citizenId, nil, true)
     if not openShift then
         TriggerClientEvent('QBCore:Notify', src, 'No active shift found.', 'error')
         return
@@ -852,7 +867,8 @@ RegisterNetEvent('mybusiness_payroll:server:clockOut', function()
     local nowTs = os.time()
     local totalMinutes = math.max(0, math.floor((nowTs - tonumber(openShift.clock_in_ts or nowTs)) / 60))
     MySQL.update.await('UPDATE mybusiness_payroll_shifts SET clock_out_ts = ?, total_minutes = ? WHERE id = ?', { nowTs, totalMinutes, openShift.id })
-    writeAuditLog(jobName, 'CLOCK_OUT', citizenId, getFullName(player), citizenId, { totalMinutes = totalMinutes })
+    writeAuditLog(openShift.job_name or jobName, 'CLOCK_OUT', citizenId, getFullName(player), citizenId, { totalMinutes = totalMinutes })
+    TriggerClientEvent('QBCore:Notify', src, ('Clocked out successfully (%s minutes).'):format(totalMinutes), 'success')
 end)
 
 RegisterNetEvent('mybusiness_payroll:server:submitAdjustment', function(payload)
@@ -1172,4 +1188,5 @@ end, 'user')
 CreateThread(function()
     ensureDatabase()
     syncJobsToDatabase()
+    print('[Aegis-Payroll] Aegis-Payroll Loaded Succesfully!')
 end)

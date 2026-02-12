@@ -19,7 +19,7 @@ Enterprise payroll resource with split boss/employee tablets, tax calculation, c
    - Boss panel displays live tax preview from server tax table.
 
 3. **Tablet-style UI (not full-screen takeover)**
-   - UI is now rendered as an iPad-style centered tablet window with transparent world visibility behind it.
+   - UI is rendered as an iPad-style centered tablet window with transparent world visibility behind it.
 
 4. **Compensation controls use Player ID**
    - Boss enters server Player ID (not citizen id).
@@ -31,6 +31,14 @@ Enterprise payroll resource with split boss/employee tablets, tax calculation, c
 
 6. **Company color theming split**
    - Boss can set separate boss-tablet and employee-tablet primary colors.
+
+7. **Startup log + safer DB bootstrap**
+   - Resource now prints `Aegis-Payroll Loaded Succesfully!` during startup.
+   - Database bootstrap now ensures `hourly_rate` exists in settings and inserts default rows with the full column set.
+
+8. **Clock-in/out reliability improvements**
+   - Successful clock-in and clock-out now notify the employee.
+   - Clock-out can resolve an active open shift even if the player changed jobs before clocking out.
 
 ## Commands
 
@@ -64,3 +72,8 @@ ensure qb-core
 ensure qb-management
 ensure mybusiness_payroll
 ```
+
+## Troubleshooting
+
+- If you see MySQL errors around `mybusiness_payroll_settings` (for example `Column 'hourly_rate' cannot be null`), restart the resource after updating so the bootstrap migration can add missing columns.
+- Importing `sql/mybusiness_payroll.sql` is recommended for fresh installs, but runtime bootstrap also creates/updates required tables and columns.
